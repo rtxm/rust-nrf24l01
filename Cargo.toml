@@ -1,0 +1,8 @@
+[package]
+name = "nrf24l01"
+version = "0.1.0"
+authors = ["Romuald Texier-Marcadé <mydevel@free.fr>"]
+
+[dependencies]
+sysfs_gpio = "*"
+spidev = "*"

@@ -1,0 +1,81 @@
+# NRF24L01+ API
+
+We choose that RX mode is default and always on while the transceiver is active (i.e. not off or standby)
+CE should be low (standby mode) for all MCU <-> NRF communications? Not necessary, but better for "locking" while reading (flag change prevention)
+
+.standby([level]) // Standby-I (default) or Standby-II (should it be exposed?)
+.power_down()
+.power_up()
+.status()
+.set_mode(RX|TX) or .listen(bool)
+.set_data_rate(data_rate)
+.set_channel(channel) // 0 ≤ channel ≤ 125
+[.signal_level()]
+.set_pa_level(pa_level)
+.set_fixed_payload(pipe, size) // size = none for dynmaic payload or .set_dynamic_payload() (for PRX or PTX pipe 0 if auto ack)
+.set_dest_address(addr) // pipe address 0 must be equal if auto_ack is set
+.set_pipe_address(pipe_num, addr)
+.set_auto_ack(pipe, bool)  // =>requires dynamic payload; auto set?
+[.enable_pipe(pipe) // do it auto when setting an address?]
+.pop() // one packet + length [+ pipe num] at a time from RXFIFO or None; available in RX or TX modes; clears RX_DR
+       // we are advised to read all available data before listening again; so change API?
+.available()  // check RXFIFO has data
+.push_tx(packet)  // push a TX packet to TXFIFO
+.push_ack(pipe, packet)  // push a ACK packet to TXFIFO; automatically enables ACK with payload
+.flush() // flush TX_FIFO + reset MAX_RT interrupt in status
+[.resume() // reset MAX_RT and send again]
+.send_all(retransmits: int)  // switch to TX mode, transmit TXFIFO, then revert to RX mode, or standby; returns number of retries or error
+                             // in case of error, can not transmit anymore unless .flush or .resume
+.send(packet, retransmits: int) // push_tx + send_all combo
+[.stream(iterator)]
+
+
+
+# Next step: interrupts and mio for full asynchronicity, stream base API
+
+# OR
+
+auto ack by default + dynamic payload (required for auto ack), define a streaming mode for real time transmission without ACK and fixed payload size
+CRC 2 bytes
+
+MODE = RX(RXConfig) | TX(TXConfig)
+
+RXConfig = {
+    data_rate
+    channel
+    pa_level  # for ACK
+    pipe0_addr
+    pipe1_addr
+    pipe2_addr | none  # none is default = disabled
+    pipe3_addr | none
+    pipe4_addr | none
+    pipe5_addr | none
+}
+
+TXConfig = {
+    data_rate
+    channel
+    pa_level
+    max_retries
+    retry_delay  # in steps of 250µs (recommended 0 or >=2)
+    pipe0_addr  # destination address = receive address for ACK
+}
+
+.configure(mode)
+.power_down()
+.power_up()
+.status()
+.available()
+.read(buf)  # one packet at a time, returns packet length + pipe num; available in RX or TX modes; clears RX_DR
+.write(pipe num, buf) # one packet at a time; in RX mode, store a payload for ack on pipe num; in TX mode, pipe num must be 0
+.flush() // flush TX_FIFO and RX_FIFO + reset MAX_RT interrupt in status
+
+// RX only
+.listen() # wake up, set CE high
+.standby() # only meaningful in RX mode, set CE low
+
+
+// TX only
+.send()  # send all the queue; return Success(retries) or Failed(remaining_packets), device in standby when it is done
+[.resume() // reset MAX_RT and send again]
+
