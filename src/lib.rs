@@ -151,6 +151,10 @@ const R_REGISTER: Command = 0;
 const W_REGISTER: Command = 0b0010_0000;
 // Nop, maybe used to just read the status register
 const NOP: Command = 0b1111_1111;
+// Read input FIFO
+const R_RX_PAYLOAD: Command = 0b0110_0001;
+// Read the size of the packet on top of input FIFO
+const R_RX_PL_WID: Command =  0b0110_0000;
 
 type Register = u8;
 
@@ -187,6 +191,8 @@ const RX_ADDR_P4: Register = 0x0E;
 const RX_ADDR_P5: Register = 0x0F;
 // Destination address, p 57
 const TX_ADDR: Register = 0x10;
+// FIFO status (RX & TX), p 58
+const FIFO_STATUS: Register = 0x17;
 // Enable dynamic payload length (requires EN_DPL and ENAA_PX), p 59
 const DYNPD: Register = 0x1C;
 //  Feature register (content EN_DPL, EN_ACK_PAY...), p 59
@@ -210,10 +216,10 @@ impl NRF24L01 {
         self.spi.transfer(&mut transfer)
     }
 
-    fn write_register(&self, register: Register, data: u8) -> io::Result<()> {
+    fn write_register(&self, register: Register, byte: u8) -> io::Result<()> {
         // For single byte registers only
         let mut response_buffer = [0u8; 2];
-        self.send_command(&[W_REGISTER | register, data], &mut response_buffer)
+        self.send_command(&[W_REGISTER | register, byte], &mut response_buffer)
     }
 
     fn setup_rf(&self, rate: DataRate, level: PALevel) -> io::Result<()> {
@@ -363,6 +369,10 @@ impl NRF24L01 {
         }
     }
 
+    pub fn is_receiver(&self) -> bool {
+        self.base_config & 1u8 == 1u8
+    }
+
     /// Power down the device.
     ///
     /// The power consumption is minimum in this mode, and the device ceases all operation.
@@ -377,6 +387,57 @@ impl NRF24L01 {
         self.write_register(CONFIG, self.base_config | 0b00000010)
     }
 
+    /// Put the device in standby (RX Mode)
+    ///
+    /// Only used in RX mode to suspend active listening.
+    /// In TX mode, standby is the default state when not sending data.
+    pub fn standby(&self) -> io::Result<()> {
+        self.ce.set_value(0).unwrap(); // always returnss without error.
+        Ok(())
+    }
+
+    /// (RX mode only) Wake up and activate receiver.
+    ///
+    /// In RX mode, call this function after a `.configure(...)`, `.standby()` or `power_up()` to
+    /// accept incoming packets.
+    pub fn listen(&self) -> io::Result<()> {
+        if self.is_receiver() {
+            self.ce.set_value(1).unwrap()
+        }
+        Ok(())
+    }
+
+
+    /// Is there any incoming data to read?
+    ///
+    /// Works in both RX and TX modes. In TX mode, this function returns true if
+    /// a ACK payload has been received.
+    pub fn data_available(&self) -> io::Result<bool> {
+        // TODO: should we return the number of the pipe that received the last packet?
+        let mut registers = [0, 0]; // STATUS, FIFO_STATUS
+        self.send_command(&[R_REGISTER | FIFO_STATUS, 0], &mut registers)?;
+        Ok((registers[0] & 0b01000000 != 0) || (registers[1] & 1u8 == 0))
+    }
+
+    /// Read incoming data, one packet at a time.
+    ///
+    /// Return the packet length if any.
+    /// Check `self.data_available()` for additional data to read.
+    pub fn read(&self, buffer: &mut [u8;32]) -> io::Result<u8> {
+        let mut pl_wd = [0u8];
+        self.send_command(&[R_RX_PL_WID], &mut pl_wd)?;
+        let width = pl_wd[0];
+        if width != 0 {
+            let mut receive_buffer = [0u8; 33];
+            self.send_command(&[R_RX_PAYLOAD; 33], &mut receive_buffer)?;
+            // Clear interrupt
+            self.write_register(STATUS, 0b01000000)?;
+            buffer.copy_from_slice(&receive_buffer[1..]);
+            Ok(width)
+        } else {
+            Ok(0)
+        }
+    }
 }
 
 
@@ -390,7 +451,7 @@ mod tests {
         assert_eq!(rx_conf.channel, 0);
         assert_eq!(rx_conf.pa_level, PALevel::Min);
         assert_eq!(rx_conf.pipe0_address, [0u8; 5]);
-        assert_eq!(rx_conf.pipe1_addr_lsb, None);
+        assert_eq!(rx_conf.pipe1_address, None);
     }
 
     #[test]
@@ -404,7 +465,7 @@ mod tests {
         };
         rx_conf.pipe0_address.reverse();
         assert_eq!(rx_conf.channel, 108);
-        assert_eq!(rx_conf.pipe1_addr_lsb, None);
+        assert_eq!(rx_conf.pipe1_address, None);
     }
 
     #[test]
