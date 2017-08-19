@@ -15,6 +15,8 @@ extern crate spidev;
 extern crate sysfs_gpio;
 
 use std::io;
+use std::thread::sleep;
+use std::time::Duration;
 
 
 /// Supported air data rates.
@@ -149,12 +151,18 @@ type Command = u8;
 const R_REGISTER: Command = 0;
 // Write register
 const W_REGISTER: Command = 0b0010_0000;
-// Nop, maybe used to just read the status register
-const NOP: Command = 0b1111_1111;
 // Read input FIFO
 const R_RX_PAYLOAD: Command = 0b0110_0001;
 // Read the size of the packet on top of input FIFO
-const R_RX_PL_WID: Command =  0b0110_0000;
+const R_RX_PL_WID: Command = 0b0110_0000;
+// Push a packet to output FIFO
+const W_TX_PAYLOAD: Command = 0b1010_0000;
+// Push an ACK packet to output FIFO
+// Use the last three bits to specify the pipe number
+const W_ACK_PAYLOAD: Command = 0b1010_1000;
+// Flush commands
+const FLUSH_TX: Command = 0b1110_0001;
+const FLUSH_RX: Command = 0b1110_0010;
 
 type Register = u8;
 
@@ -204,11 +212,10 @@ const FEATURE: Register = 0x1D;
 pub struct NRF24L01 {
     ce: sysfs_gpio::Pin,
     spi: spidev::Spidev,
-    base_config: u8
+    base_config: u8,
 }
 
 impl NRF24L01 {
-
     // Private methods and functions
 
     fn send_command(&self, data_out: &[u8], data_in: &mut [u8]) -> io::Result<()> {
@@ -220,6 +227,17 @@ impl NRF24L01 {
         // For single byte registers only
         let mut response_buffer = [0u8; 2];
         self.send_command(&[W_REGISTER | register, byte], &mut response_buffer)
+    }
+
+    fn read_register(&self, register: Register) -> io::Result<(u8, u8)> {
+        // For single byte registers only.
+        // Return (STATUS, register)
+        let mut response_buffer = [0u8; 2];
+        self.send_command(
+            &[R_REGISTER | register, 0],
+            &mut response_buffer,
+        )?;
+        Ok((response_buffer[0], response_buffer[1]))
     }
 
     fn setup_rf(&self, rate: DataRate, level: PALevel) -> io::Result<()> {
@@ -245,8 +263,8 @@ impl NRF24L01 {
         }
     }
 
-    fn set_full_address(&self, pipe: Register, address: [u8;5])  -> io::Result<()> {
-        let mut response_buffer = [0u8;6];
+    fn set_full_address(&self, pipe: Register, address: [u8; 5]) -> io::Result<()> {
+        let mut response_buffer = [0u8; 6];
         let mut command = [W_REGISTER | pipe, 0, 0, 0, 0, 0];
         command[1..].copy_from_slice(&address);
         self.send_command(&command, &mut response_buffer)
@@ -304,9 +322,20 @@ impl NRF24L01 {
         // disable other pipes
         self.write_register(EN_RXADDR, 1u8)?;
         // retransmission settings
-        let retry_bits: u8 = if config.max_retries < 16 { config.max_retries } else { 15 };
-        let retry_delay_bits: u8 = if config.retry_delay < 16 { config.retry_delay << 4 } else { 0xF0 };
-        self.write_register(SETUP_RETR, retry_delay_bits | retry_bits)?;
+        let retry_bits: u8 = if config.max_retries < 16 {
+            config.max_retries
+        } else {
+            15
+        };
+        let retry_delay_bits: u8 = if config.retry_delay < 16 {
+            config.retry_delay << 4
+        } else {
+            0xF0
+        };
+        self.write_register(
+            SETUP_RETR,
+            retry_delay_bits | retry_bits,
+        )?;
         // base config is 2 bytes for CRC and TX mode on.
         Ok(0b00001100)
     }
@@ -339,7 +368,11 @@ impl NRF24L01 {
         ce.set_direction(sysfs_gpio::Direction::Low).map_err(|_| {
             io::Error::new(io::ErrorKind::PermissionDenied, "Unable to set CE")
         })?;
-        Ok(NRF24L01 { ce, spi, base_config: 0b00001101 })
+        Ok(NRF24L01 {
+            ce,
+            spi,
+            base_config: 0b00001101,
+        })
     }
 
     /// Configure the device as Primary Receiver (PRX) or Primary Transmitter (PTX),
@@ -414,19 +447,18 @@ impl NRF24L01 {
     /// a ACK payload has been received.
     pub fn data_available(&self) -> io::Result<bool> {
         // TODO: should we return the number of the pipe that received the last packet?
-        let mut registers = [0, 0]; // STATUS, FIFO_STATUS
-        self.send_command(&[R_REGISTER | FIFO_STATUS, 0], &mut registers)?;
-        Ok((registers[0] & 0b01000000 != 0) || (registers[1] & 1u8 == 0))
+        let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
+        Ok((status & 0b01000000 != 0) || (fifo_status & 1u8 == 0))
     }
 
     /// Read incoming data, one packet at a time.
     ///
     /// Return the packet length if any.
     /// Check `self.data_available()` for additional data to read.
-    pub fn read(&self, buffer: &mut [u8;32]) -> io::Result<u8> {
-        let mut pl_wd = [0u8];
-        self.send_command(&[R_RX_PL_WID], &mut pl_wd)?;
-        let width = pl_wd[0];
+    pub fn read(&self, buffer: &mut [u8; 32]) -> io::Result<usize> {
+        let mut pl_wd: [u8; 2] = [0, 0];
+        self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
+        let width = pl_wd[1] as usize;
         if width != 0 {
             let mut receive_buffer = [0u8; 33];
             self.send_command(&[R_RX_PAYLOAD; 33], &mut receive_buffer)?;
@@ -437,6 +469,105 @@ impl NRF24L01 {
         } else {
             Ok(0)
         }
+    }
+
+    /// Queue data to be sent, one packet at a time.
+    ///
+    /// In TX, `pipe_num` is ignored. In RX mode, this function queues an ACK payload
+    /// for messages received on `pipe_num`. if `pipe_num` is bigger than 5,
+    /// it is capped to 5.
+    ///
+    /// The maximum size for a packet is 32 bytes.
+    ///
+    /// You can store a maximun of 3 payloads in the FIFO queue.
+    pub fn push(&self, pipe_num: u8, data: &[u8]) -> io::Result<()> {
+        let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
+        if (status & 1 != 0) || (fifo_status & 0b00100000 != 0) {
+            // TX_FIFO is full
+            Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "Sending queue is full!",
+            ))
+        } else {
+            let command = if self.is_receiver() {
+                let actual_pipe_num: u8 = if pipe_num < 6 { pipe_num } else { 5 };
+                W_ACK_PAYLOAD | actual_pipe_num
+            } else {
+                W_TX_PAYLOAD
+            };
+            let mut out_buffer = vec![command];
+            out_buffer.extend_from_slice(data);
+            if out_buffer.len() > 33 {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Packet too big!",
+                ))
+            } else {
+                let mut in_buffer = vec![0u8;out_buffer.len()];
+                self.send_command(&out_buffer, &mut in_buffer)?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Send all packets in the TX FIFO queue.
+    ///
+    /// The call blocks until all packets are sent or the device reaches
+    /// the `max_retries` number of retries after failure.
+    /// Return the number of retries in case of success.
+    ///
+    /// # Errors
+    /// Return Spidev errors as well as a custom io::ErrorKind::Timeout
+    /// when the maximun number of retries has been reached.
+    pub fn send(&self) -> io::Result<u8> {
+        // clear TX_DS and MAX_RT
+        self.write_register(STATUS, 0x30)?;
+        // init retry counter
+        let mut counter = 0u8;
+        let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
+        let mut packets_left = fifo_status & 0x10 == 0;
+        while packets_left {
+            // send with a 10us pulse
+            self.ce.set_value(1).unwrap();
+            sleep(Duration::new(0, 10_100));
+            self.ce.set_value(0).unwrap();
+            let mut status = 0u8;
+            let mut observe = 0u8;
+            while status & 0x30 == 0 {
+                // wait at least 500us
+                sleep(Duration::new(0, 500_000));
+                let outcome = self.read_register(OBSERVE_TX)?;
+                status = outcome.0;
+                observe = outcome.1;
+            }
+            // check MAX_RT
+            if status & 0x10 > 0 {
+                // failure
+                // clear MAX_RT
+                self.write_register(STATUS, 0x10)?;
+                // force return
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Maximum number of retries reached!",
+                ));
+            };
+            // Success
+            // clear TX_DS
+            self.write_register(STATUS, 0x20)?;
+            counter += observe & 0x0f;
+            let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
+            packets_left = fifo_status & 0x10 == 0;
+        }
+        // if all sent, return retry counter
+        Ok(counter)
+    }
+
+    /// Clear input and output queues.
+    pub fn flush(&self) -> io::Result<()> {
+        let mut buffer = [0u8];
+        self.send_command(&[FLUSH_TX], &mut buffer)?;
+        self.send_command(&[FLUSH_RX], &mut buffer)?;
+        Ok(())
     }
 }
 
