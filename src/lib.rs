@@ -495,16 +495,17 @@ impl NRF24L01 {
             } else {
                 W_TX_PAYLOAD
             };
-            let mut out_buffer = vec![command];
-            out_buffer.extend_from_slice(data);
-            if out_buffer.len() > 33 {
+            if data.len() > 32 {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Packet too big!",
                 ))
             } else {
-                let mut in_buffer = vec![0u8;out_buffer.len()];
-                self.send_command(&out_buffer, &mut in_buffer)?;
+                let mut out_buffer = [command; 33];
+                let ubound = data.len() + 1;
+                out_buffer[1..ubound].copy_from_slice(data);
+                let mut in_buffer = [0u8; 33];
+                self.send_command(&out_buffer[..ubound], &mut in_buffer[..ubound])?;
                 Ok(())
             }
         }
@@ -529,7 +530,7 @@ impl NRF24L01 {
         while packets_left {
             // send with a 10us pulse
             self.ce.set_value(1).unwrap();
-            sleep(Duration::new(0, 10_100));
+            sleep(Duration::new(0, 10_000));
             self.ce.set_value(0).unwrap();
             let mut status = 0u8;
             let mut observe = 0u8;
