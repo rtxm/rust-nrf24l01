@@ -473,8 +473,8 @@ impl NRF24L01 {
 
     /// Queue data to be sent, one packet at a time.
     ///
-    /// In TX, `pipe_num` is ignored. In RX mode, this function queues an ACK payload
-    /// for messages received on `pipe_num`. if `pipe_num` is bigger than 5,
+    /// In TX mode, `pipe_num` is ignored. In RX mode, this function queues an ACK payload
+    /// for the message to arrive on `pipe_num`. if `pipe_num` is bigger than 5,
     /// it is capped to 5.
     ///
     /// The maximum size for a packet is 32 bytes.
@@ -510,7 +510,7 @@ impl NRF24L01 {
         }
     }
 
-    /// Send all packets in the TX FIFO queue.
+    /// [TX mode only] Send all packets in the TX FIFO queue.
     ///
     /// The call blocks until all packets are sent or the device reaches
     /// the `max_retries` number of retries after failure.
