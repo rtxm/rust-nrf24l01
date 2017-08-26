@@ -2,8 +2,7 @@
 //!
 //! The aim of this driver is to provide a rustic, easy to use, no non-sense
 //! API to drive an NRF24L01 transceiver.This is not a port from a C or C++ library.
-//! It has been written from scratch based on the
-//! [specs](https://duckduckgo.com/l/?kh=-1&uddg=https%3A%2F%2Fwww.sparkfun.com%2Fdatasheets%2FComponents%2FSMD%2FnRF24L01Pluss_Preliminary_Product_Specification_v1_0.pdf).
+//! It has been written from scratch based on the specs.
 //!
 //! For the moment, the driver only offer an API for the most reliable communication
 //! scheme offered by NRF24L01 chips, that is _Enhanced Shockburst™_, with
@@ -126,7 +125,8 @@ pub struct TXConfig {
     ///
     /// Actual delay = 250 + `retry_delay` * 250 [µs]
     ///
-    /// 0 <= `retry_delay` <= 15. Default is 0, recommended is > 1. Any value above 15 is capped to 15.
+    /// 0 <= `retry_delay` <= 15. Default is 0, recommended is > 1.
+    /// Any value above 15 is capped to 15.
     pub retry_delay: u8, // [0, 15]
     /// Destination address, should match an address on the receiver end.
     ///
@@ -242,15 +242,15 @@ impl NRF24L01 {
 
     fn setup_rf(&self, rate: DataRate, level: PALevel) -> io::Result<()> {
         let rate_bits: u8 = match rate {
-            DataRate::R250Kbps => 0b00100000,
+            DataRate::R250Kbps => 0b0010_0000,
             DataRate::R1Mbps => 0,
-            DataRate::R2Mbps => 0b000001000,
+            DataRate::R2Mbps => 0b0000_1000,
         };
         let level_bits: u8 = match level {
             PALevel::Min => 0,
-            PALevel::Low => 0b00000010,
-            PALevel::High => 0b00000100,
-            PALevel::Max => 0b00000110,
+            PALevel::Low => 0b0000_0010,
+            PALevel::High => 0b0000_0100,
+            PALevel::Max => 0b0000_0110,
         };
         self.write_register(RF_SETUP, rate_bits | level_bits)
     }
@@ -282,32 +282,32 @@ impl NRF24L01 {
         // Pipe 1
         if let Some(address) = config.pipe1_address {
             self.set_full_address(RX_ADDR_P1, address)?;
-            enabled |= 0b00000010
+            enabled |= 0b0000_0010
         };
         // Pipe 2
         if let Some(lsb) = config.pipe2_addr_lsb {
             self.write_register(RX_ADDR_P2, lsb)?;
-            enabled |= 0b00000100
+            enabled |= 0b0000_0100
         };
         // Pipe 3
         if let Some(lsb) = config.pipe3_addr_lsb {
             self.write_register(RX_ADDR_P3, lsb)?;
-            enabled |= 0b00001000
+            enabled |= 0b0000_1000
         }
         // Pipe 4
         if let Some(lsb) = config.pipe4_addr_lsb {
             self.write_register(RX_ADDR_P4, lsb)?;
-            enabled |= 0b00010000
+            enabled |= 0b0001_0000
         };
         // Pipe 5
         if let Some(lsb) = config.pipe5_addr_lsb {
             self.write_register(RX_ADDR_P5, lsb)?;
-            enabled |= 0b00100000
+            enabled |= 0b0010_0000
         };
         // Enable configured pipes
         self.write_register(EN_RXADDR, enabled)?;
         // base config is 2 bytes for CRC and RX mode on.
-        Ok(0b00001101)
+        Ok(0b0000_1101)
     }
 
     fn configure_transmitter(&self, config: &TXConfig) -> io::Result<u8> {
@@ -337,7 +337,7 @@ impl NRF24L01 {
             retry_delay_bits | retry_bits,
         )?;
         // base config is 2 bytes for CRC and TX mode on.
-        Ok(0b00001100)
+        Ok(0b0000_1100)
     }
 
     // Public API
@@ -362,44 +362,47 @@ impl NRF24L01 {
             .build();
         spi.configure(&options)?;
         let ce = sysfs_gpio::Pin::new(ce_pin);
-        ce.export().map_err(|_| {
-            io::Error::new(io::ErrorKind::PermissionDenied, "Unable to export CE")
+        ce.export().or_else(|_| {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Unable to export CE",
+            ))
         })?;
-        ce.set_direction(sysfs_gpio::Direction::Low).map_err(|_| {
-            io::Error::new(io::ErrorKind::PermissionDenied, "Unable to set CE")
+        ce.set_direction(sysfs_gpio::Direction::Low).or_else(|_| {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Unable to set CE",
+            ))
         })?;
         Ok(NRF24L01 {
             ce,
             spi,
-            base_config: 0b00001101,
+            base_config: 0b0000_1101,
         })
     }
 
     /// Configure the device as Primary Receiver (PRX) or Primary Transmitter (PTX),
     /// set all its properties for proper operations and power it up.
     ///
-    /// The device remain in standby until `self.listen()` (RX mode) or `self.send()` (TX mode) is called.
+    /// The device remain in standby until `self.listen()` (RX mode)
+    /// or `self.send()` (TX mode) is called.
     pub fn configure(&mut self, mode: &OperatingMode) -> io::Result<()> {
         self.ce.set_value(0).unwrap();
         // auto acknowlegement
-        self.write_register(EN_AA, 0b00111111)?;
+        self.write_register(EN_AA, 0b0011_1111)?;
         // dynamic payload and payload with ACK
-        self.write_register(DYNPD, 0b00111111)?;
-        self.write_register(FEATURE, 0b00000110)?;
+        self.write_register(DYNPD, 0b0011_1111)?;
+        self.write_register(FEATURE, 0b0000_0110)?;
 
         // Mode specific configuration
-        let config_result = match mode {
-            &OperatingMode::RX(ref config) => self.configure_receiver(config),
-            &OperatingMode::TX(ref config) => self.configure_transmitter(config),
-        };
-        if let Ok(base_config) = config_result {
+        match *mode {
+            OperatingMode::RX(ref config) => self.configure_receiver(config),
+            OperatingMode::TX(ref config) => self.configure_transmitter(config),
+        }.and_then(|base_config| {
             // Go!
             self.base_config = base_config;
             self.power_up()
-        } else {
-            // return error
-            config_result.map(|_| ())
-        }
+        })
     }
 
     pub fn is_receiver(&self) -> bool {
@@ -417,7 +420,7 @@ impl NRF24L01 {
 
     /// Power the device up for full operation.
     pub fn power_up(&self) -> io::Result<()> {
-        self.write_register(CONFIG, self.base_config | 0b00000010)
+        self.write_register(CONFIG, self.base_config | 0b0000_0010)
     }
 
     /// Put the device in standby (RX Mode)
@@ -447,8 +450,13 @@ impl NRF24L01 {
     /// a ACK payload has been received.
     pub fn data_available(&self) -> io::Result<bool> {
         // TODO: should we return the number of the pipe that received the last packet?
-        let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
-        Ok((status & 0b01000000 != 0) || (fifo_status & 1u8 == 0))
+        self.read_register(FIFO_STATUS).and_then(
+            |(status, fifo_status)| {
+                Ok(
+                    (status & 0b0100_0000 != 0) || (fifo_status.trailing_zeros() >= 1),
+                )
+            },
+        )
     }
 
     /// Read incoming data, one packet at a time.
@@ -463,7 +471,7 @@ impl NRF24L01 {
             let mut receive_buffer = [0u8; 33];
             self.send_command(&[R_RX_PAYLOAD; 33], &mut receive_buffer)?;
             // Clear interrupt
-            self.write_register(STATUS, 0b01000000)?;
+            self.write_register(STATUS, 0b0100_0000)?;
             buffer.copy_from_slice(&receive_buffer[1..]);
             Ok(width)
         } else {
@@ -482,7 +490,7 @@ impl NRF24L01 {
     /// You can store a maximun of 3 payloads in the FIFO queue.
     pub fn push(&self, pipe_num: u8, data: &[u8]) -> io::Result<()> {
         let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
-        if (status & 1 != 0) || (fifo_status & 0b00100000 != 0) {
+        if (status & 1 != 0) || (fifo_status & 0b0010_0000 != 0) {
             // TX_FIFO is full
             Err(io::Error::new(
                 io::ErrorKind::WriteZero,
@@ -505,8 +513,7 @@ impl NRF24L01 {
                 let ubound = data.len() + 1;
                 out_buffer[1..ubound].copy_from_slice(data);
                 let mut in_buffer = [0u8; 33];
-                self.send_command(&out_buffer[..ubound], &mut in_buffer[..ubound])?;
-                Ok(())
+                self.send_command(&out_buffer[..ubound], &mut in_buffer[..ubound])
             }
         }
     }
@@ -534,6 +541,7 @@ impl NRF24L01 {
             self.ce.set_value(0).unwrap();
             let mut status = 0u8;
             let mut observe = 0u8;
+            // wait for ACK
             while status & 0x30 == 0 {
                 // wait at least 500us
                 sleep(Duration::new(0, 500_000));
