@@ -450,9 +450,9 @@ impl NRF24L01 {
     /// a ACK payload has been received.
     pub fn data_available(&self) -> io::Result<bool> {
         self.read_register(FIFO_STATUS).and_then(
-            |(status, fifo_status)| {
+            |(_, fifo_status)| {
                 Ok(
-                    (status & 0b0100_0000 != 0) || (fifo_status.trailing_zeros() >= 1),
+                    (fifo_status.trailing_zeros() >= 1),
                 )
             },
         )
@@ -472,7 +472,9 @@ impl NRF24L01 {
         let pipe_num = (pl_wd[0] & 0b0000_1110) >> 1;
         if width != 0 { // alternatively: pipe_num < 6
             let mut receive_buffer = [0u8; 33];
-            self.send_command(&[R_RX_PAYLOAD; 33], &mut receive_buffer)?;
+            let out_buffer = [R_RX_PAYLOAD; 33];
+            let ubound = width + 1;
+            self.send_command(&out_buffer[..ubound], &mut receive_buffer[..ubound])?;
             // Clear interrupt
             self.write_register(STATUS, 0b0100_0000)?;
             buffer.copy_from_slice(&receive_buffer[1..]);
