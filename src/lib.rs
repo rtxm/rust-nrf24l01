@@ -449,7 +449,6 @@ impl NRF24L01 {
     /// Works in both RX and TX modes. In TX mode, this function returns true if
     /// a ACK payload has been received.
     pub fn data_available(&self) -> io::Result<bool> {
-        // TODO: should we return the number of the pipe that received the last packet?
         self.read_register(FIFO_STATUS).and_then(
             |(status, fifo_status)| {
                 Ok(
@@ -461,33 +460,52 @@ impl NRF24L01 {
 
     /// Read incoming data, one packet at a time.
     ///
-    /// Return the packet length if any.
+    /// Return the packet length if any and the origin pipe number.
     /// Check `self.data_available()` for additional data to read.
-    pub fn read(&self, buffer: &mut [u8; 32]) -> io::Result<usize> {
+    pub fn read(&self, buffer: &mut [u8; 32]) -> io::Result<(usize, u8)> {
+        // save CE state
+        let ce_state = self.ce.get_value().unwrap(); // never fail
+        self.ce.set_value(0).unwrap(); // never fail
         let mut pl_wd: [u8; 2] = [0, 0];
         self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
         let width = pl_wd[1] as usize;
-        if width != 0 {
+        let pipe_num = (pl_wd[0] & 0b0000_1110) >> 1;
+        if width != 0 { // alternatively: pipe_num < 6
             let mut receive_buffer = [0u8; 33];
             self.send_command(&[R_RX_PAYLOAD; 33], &mut receive_buffer)?;
             // Clear interrupt
             self.write_register(STATUS, 0b0100_0000)?;
             buffer.copy_from_slice(&receive_buffer[1..]);
-            Ok(width)
+            self.ce.set_value(ce_state).unwrap();
+            Ok((width, pipe_num))
         } else {
-            Ok(0)
+            self.ce.set_value(ce_state).unwrap();
+            Ok((0, pipe_num))
         }
     }
 
-    /// Queue data to be sent, one packet at a time.
+    /// Queue (FIFO) data to be sent, one packet at a time.
     ///
     /// In TX mode, `pipe_num` is ignored. In RX mode, this function queues an ACK payload
-    /// for the message to arrive on `pipe_num`. if `pipe_num` is bigger than 5,
+    /// for the next message to arrive on `pipe_num`. if `pipe_num` is bigger than 5,
     /// it is capped to 5.
     ///
     /// The maximum size for a packet is 32 bytes.
     ///
     /// You can store a maximun of 3 payloads in the FIFO queue.
+    ///
+    /// **Note** : The payloads remain in the queue
+    ///
+    /// * In TX mode, a payload is removed from the send queue if and only if
+    /// it has been successfully sent.
+    ///
+    /// * In RX mode, an ACK payload is removed from the queue if and only if
+    /// it has been sent AND the pipe receives a new message, different from
+    /// the one the ACK payload responded to. This is because the receiver has
+    /// no mean to know whether the transmitter has received the ACK until
+    /// it receives a new, different message from the same transmitter.
+    /// So, it keeps the ACK under hand in case the transmitter resends the same
+    /// packet over again.
     pub fn push(&self, pipe_num: u8, data: &[u8]) -> io::Result<()> {
         let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
         if (status & 1 != 0) || (fifo_status & 0b0010_0000 != 0) {
@@ -523,6 +541,10 @@ impl NRF24L01 {
     /// The call blocks until all packets are sent or the device reaches
     /// the `max_retries` number of retries after failure.
     /// Return the number of retries in case of success.
+    ///
+    /// The payloads that failed to be sent remain in the TX queue.
+    /// You can call `.send()` again to relauch a send/retry cycle or
+    /// call `.flush_output` to clear the queue.
     ///
     /// # Errors
     /// Return Spidev errors as well as a custom io::ErrorKind::Timeout
@@ -571,11 +593,21 @@ impl NRF24L01 {
         Ok(counter)
     }
 
-    /// Clear input and output queues.
-    pub fn flush(&self) -> io::Result<()> {
+    /// Clear input queue.
+    ///
+    /// In RX mode, use only when device is in standby.
+    pub fn flush_input(&self) -> io::Result<()> {
+        let mut buffer = [0u8];
+        self.send_command(&[FLUSH_RX], &mut buffer)?;
+        Ok(())
+    }
+
+    /// Clear output queue.
+    ///
+    /// In RX mode, use only when device is in standby.
+    pub fn flush_output(&self) -> io::Result<()> {
         let mut buffer = [0u8];
         self.send_command(&[FLUSH_TX], &mut buffer)?;
-        self.send_command(&[FLUSH_RX], &mut buffer)?;
         Ok(())
     }
 }

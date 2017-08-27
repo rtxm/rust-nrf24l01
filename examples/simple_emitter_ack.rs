@@ -17,7 +17,7 @@ fn main() {
     let mut device = NRF24L01::new(25, 0).unwrap();
     let message = b"sendtest";
     device.configure(&OperatingMode::TX(config)).unwrap();
-    device.flush().unwrap();
+    device.flush_output().unwrap();
     loop {
         device.push(0, message).unwrap();
         match device.send() {
@@ -25,7 +25,7 @@ fn main() {
                 println!("Message sent, {} retries needed", retries);
                 if device.data_available().unwrap() {
                     let mut response = [0u8; 32];
-                    let packet_size = device.read(&mut response).unwrap();
+                    let (packet_size, _) = device.read(&mut response).unwrap();
                     println!("Received back {:?} bytes", packet_size);
                     println!("ACK Payload {:?}", &response[0..packet_size])
                 } else {
@@ -34,7 +34,7 @@ fn main() {
             },
             Err(err) => {
                 println!("Destination unreachable: {:?}", err);
-                device.flush().unwrap()
+                device.flush_output().unwrap()
             }
         };
         sleep(Duration::from_millis(5000));

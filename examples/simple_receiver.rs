@@ -19,8 +19,8 @@ fn main() {
     loop {
         sleep(Duration::from_millis(500));
         if device.data_available().unwrap() {
-            let packet_size = device.read(&mut packet_buffer).unwrap();
-            println!("Received {:?} bytes", packet_size);
+            let (packet_size, pipe_num) = device.read(&mut packet_buffer).unwrap();
+            println!("Received {:?} bytes on pipe {:?}", packet_size, pipe_num);
             println!("Payload {:?}", &packet_buffer[0..packet_size]);
         }
     }

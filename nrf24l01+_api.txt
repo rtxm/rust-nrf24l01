@@ -76,6 +76,6 @@ TXConfig = {
 
 
 // TX only
-.send()  # send all the queue; return Success(retries) or Failed(remaining_packets), device in standby when it is done
+.send()  # send all the TX queue; return Success(retries) or Failed(remaining_packets), device in standby when it is done
 [.resume() // reset MAX_RT and send again]
 
