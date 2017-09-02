@@ -306,8 +306,9 @@ impl NRF24L01 {
         };
         // Enable configured pipes
         self.write_register(EN_RXADDR, enabled)?;
-        // base config is 2 bytes for CRC and RX mode on.
-        Ok(0b0000_1101)
+        // base config is 2 bytes for CRC and RX mode on
+        // only reflect RX_DR on the IRQ pin
+        Ok(0b0011_1101)
     }
 
     fn configure_transmitter(&self, config: &TXConfig) -> io::Result<u8> {
@@ -336,8 +337,9 @@ impl NRF24L01 {
             SETUP_RETR,
             retry_delay_bits | retry_bits,
         )?;
-        // base config is 2 bytes for CRC and TX mode on.
-        Ok(0b0000_1100)
+        // base config is 2 bytes for CRC and TX mode on
+        // only reflect TX_DS and MAX_RT on the IRQ pin
+        Ok(0b0100_1100)
     }
 
     // Public API
