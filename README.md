@@ -97,6 +97,12 @@ fn main() {
 }
 ```
 
+### More examples
+
+* [simple_emitter_ack.rs](https://github.com/rtxm/rust-nrf24l01/blob/master/examples/simple_emitter_ack.rs): simple emitter that tests for and reads ACK payloads;
+* [simple_receiver_ack.rs](https://github.com/rtxm/rust-nrf24l01/blob/master/examples/simple_receiver_ack.rs): a simple receiver that attaches payloads to ACKs;
+* [multiceiver_ack.rs](https://github.com/rtxm/rust-nrf24l01/blob/master/examples/multiceiver_ack.rs): an example of a multiceiver that attaches distinct payloads for specific peers.
+
 ## Cross-compilation
 
 The [rust-cross guide][3] has detailled and comprehensive instructions for cross compiling.
