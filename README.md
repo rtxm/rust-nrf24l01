@@ -109,7 +109,7 @@ Once you are set up for say, ARM, you can cross-compile the examples for a Raspb
 cargo build -v --examples --target=arm-unknown-linux-gnueabihf
 ```
 
-Then, you can move any of the executable to your test machine:
+Then, you can move any of the executables to your test machine:
 
 ```bash
 scp target/arm-unknown-linux-gnueabihf/debug/examples/multiceiver_ack ...
