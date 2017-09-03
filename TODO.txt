@@ -1,0 +1,4 @@
+# NRF24L01+ API TODO list
+
+* Asynchronous API based on Tokio and device IRQ
+* Stream based API
