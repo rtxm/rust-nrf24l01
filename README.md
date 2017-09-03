@@ -1,13 +1,119 @@
-A pure Rust driver for NRF24L01 transceivers
+# rust-nrf24l01
+
+A pure Rust user space driver for NRF24L01(+) transceivers on Linux.
 
 The aim of this driver is to provide a rustic, easy to use, no non-sense
-API to drive an NRF24L01 transceiver.This is not a port from a C or C++ library.
-It has been written from scratch based on the
-[specs](https://duckduckgo.com/l/?kh=-1&uddg=https%3A%2F%2Fwww.sparkfun.com%2Fdatasheets%2FComponents%2FSMD%2FnRF24L01Pluss_Preliminary_Product_Specification_v1_0.pdf).
+API to drive an NRF24L01(+) transceiver.
 
-For the moment, the driver only offer an API for the most reliable communication
-scheme offered by NRF24L01 chips, that is _Enhanced Shockburst™_, with
-automatic (hardware) packet acknowledment, optional payload, dynamic payload length and two byte CRC.
+This is not a port from code in another language, this driver has been written from scratch
+based on the device specs.
+
+For the moment, the driver only exposes an API for the most reliable communication
+scheme offered by NRF24L01 chips, that is _Enhanced Shockburst_ ™:
+automatic (hardware) packet acknowlegement with optional payload, dynamic payload length and
+long CRC (2 bytes).
+
+The code has been tested on a Raspberry Pi with success. It should work on any platform supported
+by [rust-spidev][1] and [rust-sysfs-gpio][2].
+
+[1]: https://github.com/rust-embedded/rust-spidev
+[2]: https://github.com/rust-embedded/rust-sysfs-gpio
+
+## Examples
+
+### Simple emitter
+
+```
+extern crate nrf24l01;
+
+use std::time::Duration;
+use std::thread::sleep;
+
+use nrf24l01::{TXConfig, NRF24L01, PALevel, OperatingMode};
+
+fn main() {
+    let config = TXConfig {
+        channel: 108,
+        pa_level: PALevel::Low,
+        pipe0_address: *b"abcde",
+        max_retries: 3,
+        retry_delay: 2,
+        ..Default::default()
+    };
+
+    let mut device = NRF24L01::new(25, 0).unwrap();
+    let message = b"sendtest";
+    device.configure(&OperatingMode::TX(config)).unwrap();
+    device.flush_output().unwrap();
+
+    loop {
+        device.push(0, message).unwrap();
+        match device.send() {
+            Ok(retries) => println!("Message sent, {} retries needed", retries),
+            Err(err) => {
+                println!("Destination unreachable: {:?}", err);
+                device.flush_output().unwrap()
+            }
+        };
+        sleep(Duration::from_millis(5000));
+    }
+}
+```
+
+## Simple receiver listening to the simple emitter
+
+```
+extern crate nrf24l01;
+
+use std::time::Duration;
+use std::thread::sleep;
+
+use nrf24l01::{RXConfig, NRF24L01, PALevel, OperatingMode};
+
+fn main() {
+    let config = RXConfig {
+        channel: 108,
+        pa_level: PALevel::Low,
+        pipe0_address: *b"abcde",
+        ..Default::default()
+    };
+
+    let mut device = NRF24L01::new(25, 0).unwrap();
+    device.configure(&OperatingMode::RX(config)).unwrap();
+
+    device.listen().unwrap();
+
+    loop {
+        sleep(Duration::from_millis(500));
+        if device.data_available().unwrap() {
+            device
+                .read_all(|packet| {
+                    println!("Received {:?} bytes", packet.len());
+                    println!("Payload {:?}", packet);
+                })
+                .unwrap();
+        }
+    }
+}
+```
+
+## Cross-compilation
+
+The [rust-cross guide][3] has detailled and comprehensive instructions for cross compiling.
+
+Once you are set up for say, ARM, you can cross-compile the examples for a Raspberry Pi as easily as:
+
+```bash
+cargo build -v --examples --target=arm-unknown-linux-gnueabihf
+```
+
+Then, you can move any of the executable to your test machine:
+
+```bash
+scp target/arm-unknown-linux-gnueabihf/debug/examples/multiceiver_ack ...
+```
+
+## Future
 
 In the future, I'd like to provide :
 
@@ -15,4 +121,4 @@ In the future, I'd like to provide :
     * a stream based API for fast, "real time", data transmission
 at the cost of possible packet loss.
 
-I'm still quite new to Rust, so the code may be suboptimal. Feel free to submit pull requests to improve it !
+I'm still quite new to Rust, so the code may be suboptimal. Feel free to submit pull requests to improve it!

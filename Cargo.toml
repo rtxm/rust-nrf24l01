@@ -2,7 +2,10 @@
 name = "nrf24l01"
 version = "0.1.0"
 authors = ["Romuald Texier-Marcadé <mydevel@free.fr>"]
-
+description = "A pure Rust user space driver for NRF24L01(+) transceivers on Linux."
+license = "MIT/Apache-2.0"
+categories = ["embedded", "hardware-support"]
+keywords = ["driver", "io", "wireless", "radio", "transceiver", "nrf", "linux"]
 [dependencies]
 sysfs_gpio = "0.5.1"
 spidev = "0.3.0"

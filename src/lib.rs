@@ -1,13 +1,97 @@
-//! A pure Rust driver for NRF24L01 transceivers
+// Copyright 2017, Romuald Texier-Marcadé <romualdtm@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/license/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option.  This file may not be copied, modified, or distributed
+// except according to those terms.
+
+
+//! A pure Rust user space driver for NRF24L01(+) transceivers on Linux.
 //!
 //! The aim of this driver is to provide a rustic, easy to use, no non-sense
-//! API to drive an NRF24L01 transceiver.This is not a port from a C or C++ library.
-//! It has been written from scratch based on the specs.
+//! API to drive an NRF24L01(+) transceiver.
 //!
-//! For the moment, the driver only offer an API for the most reliable communication
-//! scheme offered by NRF24L01 chips, that is _Enhanced Shockburst™_, with
+//! This is not a port from code in another language, this driver has been written from scratch
+//! based on the device specs.
+//!
+//! For the moment, the driver only exposes an API for the most reliable communication
+//! scheme offered by NRF24L01 chips, that is _Enhanced Shockburst_ ™:
 //! automatic (hardware) packet acknowlegement with optional payload, dynamic payload length and
 //! long CRC (2 bytes).
+//!
+//! # Examples
+//!
+//! ## Simple emitter
+//!
+//! ```
+//! extern crate nrf24l01;
+//!
+//! use std::time::Duration;
+//! use std::thread::sleep;
+//!
+//! use nrf24l01::{TXConfig, NRF24L01, PALevel, OperatingMode};
+//!
+//! fn main() {
+//!     let config = TXConfig {
+//!         channel: 108,
+//!         pa_level: PALevel::Low,
+//!         pipe0_address: *b"abcde",
+//!         max_retries: 3,
+//!         retry_delay: 2,
+//!         ..Default::default()
+//!     };
+//!     let mut device = NRF24L01::new(25, 0).unwrap();
+//!     let message = b"sendtest";
+//!     device.configure(&OperatingMode::TX(config)).unwrap();
+//!     device.flush_output().unwrap();
+//!     loop {
+//!         device.push(0, message).unwrap();
+//!         match device.send() {
+//!             Ok(retries) => println!("Message sent, {} retries needed", retries),
+//!             Err(err) => {
+//!                 println!("Destination unreachable: {:?}", err);
+//!                 device.flush_output().unwrap()
+//!             }
+//!         };
+//!         sleep(Duration::from_millis(5000));
+//!     }
+//! }
+//! ```
+//!
+//! ## Simple receiver listening to the simple emitter
+//!
+//! ```
+//! extern crate nrf24l01;
+//!
+//! use std::time::Duration;
+//! use std::thread::sleep;
+//!
+//! use nrf24l01::{RXConfig, NRF24L01, PALevel, OperatingMode};
+//!
+//! fn main() {
+//!     let config = RXConfig {
+//!         channel: 108,
+//!         pa_level: PALevel::Low,
+//!         pipe0_address: *b"abcde",
+//!         ..Default::default()
+//!     };
+//!     let mut device = NRF24L01::new(25, 0).unwrap();
+//!     device.configure(&OperatingMode::RX(config)).unwrap();
+//!     device.listen().unwrap();
+//!     loop {
+//!         sleep(Duration::from_millis(500));
+//!         if device.data_available().unwrap() {
+//!             device
+//!                 .read_all(|packet| {
+//!                     println!("Received {:?} bytes", packet.len());
+//!                     println!("Payload {:?}", packet);
+//!                 })
+//!                 .unwrap();
+//!         }
+//!     }
+//! }
+//! ```
 
 
 extern crate spidev;
@@ -42,7 +126,7 @@ pub enum PALevel {
     Low,
     /// -6 dBm, 9.0 mA DC current consumption.
     High,
-    /// 0 dBm, 11.3 mA DC current consumption, up to 100 meters.
+    /// 0 dBm, 11.3 mA DC current consumption, up to 100 meters range.
     Max,
 }
 
@@ -76,15 +160,15 @@ pub struct RXConfig {
     /// need a multiceiver configuration. In that case, you can enable up to
     /// five additional receiving pipes.
     ///
-    /// The address is in big endian order: the first byte is the least significant one.
+    /// The address is in little endian order: the first byte is the least significant one.
     ///
-    /// You must provide an valid address for Pipe 0.
+    /// You must provide a valid address for Pipe 0.
+    pub pipe0_address: [u8; 5],
+    /// Pipe 1 address, defaults to None (disabled)
     ///
     /// All pipes 2-5 share the 4 most significant bytes with the pipe 1 address, so
     /// you only need to provide the least significant byte to enable one of those pipes or
     /// set it to None to disable it (default).
-    pub pipe0_address: [u8; 5],
-    /// Pipe 1 address, defaults to None (disabled)
     pub pipe1_address: Option<[u8; 5]>,
     /// Pipe 2 LSB, defaults to None (disabled)
     pub pipe2_addr_lsb: Option<u8>,
@@ -131,7 +215,7 @@ pub struct TXConfig {
     /// Destination address, should match an address on the receiver end.
     ///
     /// This is also the address on which ACK packets are received.
-    /// The address is in big endian order: the first byte is the least significant one.
+    /// The address is in little endian order: the first byte is the least significant one.
     pub pipe0_address: [u8; 5],
 }
 
@@ -349,7 +433,7 @@ impl NRF24L01 {
     /// * `ce_pin`: the GPIO number (Linux SysFS) connected to the CE pin of the transceiver
     /// * `spi_device`: the SPI device number (or channel) the transceiver is connected to.
     ///
-    /// We use the spidev linux kernel driver.
+    /// We use the spidev linux kernel driver. Ensure you have enabled SPI on your system.
     ///
     /// # Errors
     ///
@@ -384,10 +468,13 @@ impl NRF24L01 {
     }
 
     /// Configure the device as Primary Receiver (PRX) or Primary Transmitter (PTX),
-    /// set all its properties for proper operations and power it up.
+    /// set all its properties for proper operation and power it up.
     ///
     /// The device remain in standby until `self.listen()` (RX mode)
     /// or `self.send()` (TX mode) is called.
+    ///
+    /// All commands work when the device is in standby (recommended) as well as
+    /// active state.
     pub fn configure(&mut self, mode: &OperatingMode) -> io::Result<()> {
         self.ce.set_value(0).unwrap();
         // auto acknowlegement
@@ -458,16 +545,16 @@ impl NRF24L01 {
         )
     }
 
-    /// Read data from the receive queue, one packet at a time.
+    /// Read data from the receiver queue, one packet at a time.
     ///
     /// The `process_packet` callback is fired for each packet, and is
     /// passed a slice into the packet data as argument.
     ///
-    /// ``read_all`` returns the number of message read.
+    /// ``read_all`` returns the number of messages read.
     ///
     /// **Note**: this function puts the device in standby mode during
     /// the processing of the queue and restores operations when it returns *successfully*.
-    /// So the `process_packet` callback should better not block and be fast.
+    /// So the `process_packet` callback should better return quickly.
     pub fn read_all<F>(&self, mut process_packet: F) -> io::Result<u8>
     where
         F: FnMut(&[u8]) -> (),
@@ -514,17 +601,19 @@ impl NRF24L01 {
     ///
     /// You can store a maximun of 3 payloads in the FIFO queue.
     ///
-    /// **Note** : The payloads remain in the queue
+    /// **Note** : The payloads remain in the queue until the end of an _Enhanced Shockburst_ ™
+    /// transaction:
     ///
     /// * In TX mode, a payload is removed from the send queue if and only if
-    /// it has been successfully sent.
+    /// it has been successfully sent, that is, an ACK (with or without payload) has
+    /// been received for it.
     ///
     /// * In RX mode, an ACK payload is removed from the queue if and only if
     /// it has been sent AND the pipe receives a new message, different from
     /// the one the ACK payload responded to. This is because the receiver has
     /// no mean to know whether the transmitter has received the ACK until
     /// it receives a new, different message from the same transmitter.
-    /// So, it keeps the ACK under hand in case the transmitter resends the same
+    /// So, it keeps the ACK payload under hand in case the transmitter resends the same
     /// packet over again.
     pub fn push(&self, pipe_num: u8, data: &[u8]) -> io::Result<()> {
         let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
@@ -563,7 +652,7 @@ impl NRF24L01 {
     /// Return the number of retries in case of success.
     ///
     /// The payloads that failed to be sent remain in the TX queue.
-    /// You can call `.send()` again to relauch a send/retry cycle or
+    /// You can call `.send()` again to relaunch a send/retry cycle or
     /// call `.flush_output` to clear the queue.
     ///
     /// # Errors
