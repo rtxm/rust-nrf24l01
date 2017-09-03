@@ -5,7 +5,7 @@ A pure Rust user space driver for NRF24L01(+) transceivers on Linux.
 The aim of this driver is to provide a rustic, easy to use, no non-sense
 API to drive an NRF24L01(+) transceiver.
 
-This is not a port from code in another language, this driver has been written from scratch
+This is not a port from another language, this driver has been written from scratch
 based on the device specs.
 
 For the moment, the driver only exposes an API for the most reliable communication
@@ -21,9 +21,9 @@ by [rust-spidev][1] and [rust-sysfs-gpio][2].
 
 ## Examples
 
-### Simple emitter
+### Simple emitter
 
-```
+```rust
 extern crate nrf24l01;
 
 use std::time::Duration;
@@ -60,9 +60,9 @@ fn main() {
 }
 ```
 
-## Simple receiver listening to the simple emitter
+### Simple receiver listening to the simple emitter
 
-```
+```rust
 extern crate nrf24l01;
 
 use std::time::Duration;
@@ -100,6 +100,7 @@ fn main() {
 ## Cross-compilation
 
 The [rust-cross guide][3] has detailled and comprehensive instructions for cross compiling.
+[3]: https://github.com/japaric/rust-cross
 
 Once you are set up for say, ARM, you can cross-compile the examples for a Raspberry Pi as easily as:
 
@@ -117,8 +118,8 @@ scp target/arm-unknown-linux-gnueabihf/debug/examples/multiceiver_ack ...
 
 In the future, I'd like to provide :
 
-    * asynchronous operation, with mio;
-    * a stream based API for fast, "real time", data transmission
+* asynchronous operation, with mio;
+* a stream based API for fast, "real time", data transmission
 at the cost of possible packet loss.
 
 I'm still quite new to Rust, so the code may be suboptimal. Feel free to submit pull requests to improve it!
