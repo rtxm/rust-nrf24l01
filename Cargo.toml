@@ -6,6 +6,9 @@ description = "A pure Rust user space driver for NRF24L01(+) transceivers on Lin
 license = "MIT/Apache-2.0"
 categories = ["embedded", "hardware-support"]
 keywords = ["driver", "io", "wireless", "radio", "transceiver", "nrf", "linux"]
+repository = "https://github.com/rtxm/rust-nrf24l01"
+homepage = "https://github.com/rtxm/rust-nrf24l01"
+
 [dependencies]
 sysfs_gpio = "0.5.1"
 spidev = "0.3.0"
