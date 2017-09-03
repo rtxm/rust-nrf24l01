@@ -12,7 +12,7 @@
 //! The aim of this driver is to provide a rustic, easy to use, no non-sense
 //! API to drive an NRF24L01(+) transceiver.
 //!
-//! This is not a port from code in another language, this driver has been written from scratch
+//! This is not a port another language, this driver has been written from scratch
 //! based on the device specs.
 //!
 //! For the moment, the driver only exposes an API for the most reliable communication
