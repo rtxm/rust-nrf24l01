@@ -24,7 +24,7 @@
 //!
 //! ## Simple emitter
 //!
-//! ```
+//! ```rust,no_run
 //! extern crate nrf24l01;
 //!
 //! use std::time::Duration;
@@ -61,7 +61,7 @@
 //!
 //! ## Simple receiver listening to the simple emitter
 //!
-//! ```
+//! ```rust,no_run
 //! extern crate nrf24l01;
 //!
 //! use std::time::Duration;
