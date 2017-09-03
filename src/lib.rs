@@ -453,39 +453,55 @@ impl NRF24L01 {
     pub fn data_available(&self) -> io::Result<bool> {
         self.read_register(FIFO_STATUS).and_then(
             |(_, fifo_status)| {
-                Ok(
-                    (fifo_status.trailing_zeros() >= 1),
-                )
+                Ok(fifo_status.trailing_zeros() >= 1)
             },
         )
     }
 
-    /// Read incoming data, one packet at a time.
+    /// Read data from the receive queue, one packet at a time.
     ///
-    /// Return the packet length if any and the origin pipe number.
-    /// Check `self.data_available()` for additional data to read.
-    pub fn read(&self, buffer: &mut [u8; 32]) -> io::Result<(usize, u8)> {
+    /// The `process_packet` callback is fired for each packet, and is
+    /// passed a slice into the packet data as argument.
+    ///
+    /// ``read_all`` returns the number of message read.
+    ///
+    /// **Note**: this function puts the device in standby mode during
+    /// the processing of the queue and restores operations when it returns *successfully*.
+    /// So the `process_packet` callback should better not block and be fast.
+    pub fn read_all<F>(&self, mut process_packet: F) -> io::Result<u8>
+    where
+        F: FnMut(&[u8]) -> (),
+    {
+        // communication buffers
+        let mut pl_wd: [u8; 2] = [0, 0]; // for packet width
+        let mut receive_buffer = [0u8; 33]; // for packet
+        let out_buffer = [R_RX_PAYLOAD; 33]; // for command
+        // message counter
+        let mut count = 0u8;
         // save CE state
         let ce_state = self.ce.get_value().unwrap(); // never fail
+        // Standby
         self.ce.set_value(0).unwrap(); // never fail
-        let mut pl_wd: [u8; 2] = [0, 0];
-        self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
-        let width = pl_wd[1] as usize;
-        let pipe_num = (pl_wd[0] & 0b0000_1110) >> 1;
-        if width != 0 { // alternatively: pipe_num < 6
-            let mut receive_buffer = [0u8; 33];
-            let out_buffer = [R_RX_PAYLOAD; 33];
-            let ubound = width + 1;
-            self.send_command(&out_buffer[..ubound], &mut receive_buffer[..ubound])?;
-            // Clear interrupt
-            self.write_register(STATUS, 0b0100_0000)?;
-            buffer.copy_from_slice(&receive_buffer[1..]);
-            self.ce.set_value(ce_state).unwrap();
-            Ok((width, pipe_num))
-        } else {
-            self.ce.set_value(ce_state).unwrap();
-            Ok((0, pipe_num))
+        // process queue
+        while self.data_available()? {
+            self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
+            let width = pl_wd[1] as usize;
+            if width != 0 {
+                // can it be false?
+                let ubound = width + 1;
+                self.send_command(
+                    &out_buffer[..ubound],
+                    &mut receive_buffer[..ubound],
+                )?;
+                process_packet(&receive_buffer[1..ubound]);
+                count += 1;
+            }
         }
+        // Clear interrupt
+        self.write_register(STATUS, 0b0100_0000)?;
+        // Restore previous CE state
+        self.ce.set_value(ce_state).unwrap();
+        Ok(count)
     }
 
     /// Queue (FIFO) data to be sent, one packet at a time.

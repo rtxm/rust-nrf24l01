@@ -16,7 +16,6 @@ fn main() {
         ..Default::default()
     };
     let mut device = NRF24L01::new(25, 0).unwrap();
-    let mut packet_buffer = [0u8; 32];
     device.configure(&OperatingMode::RX(config)).unwrap();
     device.flush_output().unwrap();
     device.flush_input().unwrap();
@@ -27,14 +26,15 @@ fn main() {
     // Remember: a payload sent as ACK for a packet on pipe P remains in the
     // output FIFO until pipe P receives a new, *different*, packet.
     device.push(0, b"ack payload for node0").unwrap();
-    device.push(1, b"ack payload for node1").unwrap();
+    device.push(0, b"ack payload for node0 bis").unwrap();
     device.push(2, b"ack payload for node2").unwrap();
     loop {
         sleep(Duration::from_millis(500));
-        while device.data_available().unwrap() {
-            let (packet_size, pipe_num) = device.read(&mut packet_buffer).unwrap();
-            println!("Received {:?} bytes on pipe {:?}", packet_size, pipe_num);
-            println!("Payload {:?}", &packet_buffer[0..packet_size]);
+        if device.data_available().unwrap() {
+            device.read_all(|packet| {
+                println!("Received {:?} bytes", packet.len());
+                println!("Payload {:?}", packet);
+            }).unwrap();
         }
     }
 }

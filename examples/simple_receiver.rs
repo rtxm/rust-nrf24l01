@@ -13,15 +13,17 @@ fn main() {
         ..Default::default()
     };
     let mut device = NRF24L01::new(25, 0).unwrap();
-    let mut packet_buffer = [0u8; 32];
     device.configure(&OperatingMode::RX(config)).unwrap();
     device.listen().unwrap();
     loop {
         sleep(Duration::from_millis(500));
         if device.data_available().unwrap() {
-            let (packet_size, pipe_num) = device.read(&mut packet_buffer).unwrap();
-            println!("Received {:?} bytes on pipe {:?}", packet_size, pipe_num);
-            println!("Payload {:?}", &packet_buffer[0..packet_size]);
+            device
+                .read_all(|packet| {
+                    println!("Received {:?} bytes", packet.len());
+                    println!("Payload {:?}", packet);
+                })
+                .unwrap();
         }
     }
 }

@@ -24,10 +24,10 @@ fn main() {
             Ok(retries) => {
                 println!("Message sent, {} retries needed", retries);
                 if device.data_available().unwrap() {
-                    let mut response = [0u8; 32];
-                    let (packet_size, _) = device.read(&mut response).unwrap();
-                    println!("Received back {:?} bytes", packet_size);
-                    println!("ACK Payload {:?}", &response[0..packet_size])
+                    device.read_all(|packet| {
+                        println!("Received back {:?} bytes", packet.len());
+                        println!("ACK Payload {:?}", packet)
+                    }).unwrap();
                 } else {
                     println!("Blank ACK")
                 }
