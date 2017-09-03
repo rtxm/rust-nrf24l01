@@ -100,6 +100,7 @@ fn main() {
 ## Cross-compilation
 
 The [rust-cross guide][3] has detailled and comprehensive instructions for cross compiling.
+
 [3]: https://github.com/japaric/rust-cross
 
 Once you are set up for say, ARM, you can cross-compile the examples for a Raspberry Pi as easily as:
