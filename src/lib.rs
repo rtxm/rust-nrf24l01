@@ -34,7 +34,7 @@
 //!
 //! ```toml
 //! [dependencies.nrf24l01]
-//! version = 0.2.0
+//! version = "0.2.0"
 //! features = ["rpi_accel"]
 //! default-features = false
 //! ```

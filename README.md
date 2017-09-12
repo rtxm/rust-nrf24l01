@@ -133,7 +133,7 @@ scp target/arm-unknown-linux-gnueabihf/debug/examples/multiceiver_ack ...
 
 For SPI communication with the NRF24L01(+), we use the Linux standard SPIDEV kernel driver through the [rust-spidev][1] library with excellent efficiency.
 
-For driving the device CE pin, we use GPIO. The current standard Linux way is by using the sysfs-gpio kernel driver. For that we use [rust-sysfs-gpio].
+For driving the device CE pin, we use GPIO. The current standard Linux way is by using the sysfs-gpio kernel driver. For that we use [rust-sysfs-gpio][2].
 
 Unfortunatly, sysfs-gpio is slow, and rust-sysfs-gpio slower still. On a Raspberry A+ for example, that incurs a ~300 µs lag for each send or read operation
 (for comparison, that's roughly the time needed by the device to send 32 bytes and receive acknowledgment).
@@ -144,7 +144,7 @@ To enable the `rpi_accel` feature for your crate (and disabling the defaults), r
 
 ```toml
 [dependencies.nrf24l01]
-version = 0.2.0
+version = "0.2.0"
 features = ["rpi_accel"]
 default-features = false
 ```
