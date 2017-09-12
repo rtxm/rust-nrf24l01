@@ -20,8 +20,14 @@ long CRC (2 bytes).
 The code has been tested on a Raspberry Pi with success. It should work on any platform supported
 by [rust-spidev][1] and [rust-sysfs-gpio][2].
 
-[1]: https://github.com/rust-embedded/rust-spidev
-[2]: https://github.com/rust-embedded/rust-sysfs-gpio
+## Usage
+
+Add a dependency to `nrf24l01` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+nrf24l01 = "0.2.0"
+```
 
 ## Examples
 
@@ -111,8 +117,6 @@ fn main() {
 
 The [rust-cross guide][3] has detailled and comprehensive instructions for cross compiling.
 
-[3]: https://github.com/japaric/rust-cross
-
 Once you are set up for say, ARM, you can cross-compile the examples for a Raspberry Pi as easily as:
 
 ```bash
@@ -125,6 +129,28 @@ Then, you can move any of the executables to your test machine:
 scp target/arm-unknown-linux-gnueabihf/debug/examples/multiceiver_ack ...
 ```
 
+## Performance
+
+For SPI communication with the NRF24L01(+), we use the Linux standard SPIDEV kernel driver through the [rust-spidev][1] library with excellent efficiency.
+
+For driving the device CE pin, we use GPIO. The current standard Linux way is by using the sysfs-gpio kernel driver. For that we use [rust-sysfs-gpio].
+
+Unfortunatly, sysfs-gpio is slow, and rust-sysfs-gpio slower still. On a Raspberry A+ for example, that incurs a ~300 µs lag for each send or read operation
+(for comparison, that's roughly the time needed by the device to send 32 bytes and receive acknowledgment).
+
+If you need really fast operation and you use a Raspberry Pi, you can activate the ``rpi_accel`` feature. That feature uses [rppal][4] for direct access to the GPIO registers exposed on Raspberry Pi in ``/dev/mem`` or ``/dev/gpiomem``. Thus the lag becomes negligible: only ~130 ns on a Rasberry Pi A+.
+
+To enable the `rpi_accel` feature for your crate (and disabling the defaults), replace the dependency on this library in your `Cargo.toml` by:
+
+```toml
+[dependencies.nrf24l01]
+version = 0.2.0
+features = ["rpi_accel"]
+default-features = false
+```
+
+If you know a library for such a fast access to GPIO on the Beaglebone, please let me know!
+
 ## Future
 
 In the future, I'd like to provide :
@@ -134,3 +160,9 @@ In the future, I'd like to provide :
 at the cost of possible packet loss.
 
 I'm still quite new to Rust, so the code may be suboptimal. Feel free to submit pull requests to improve it!
+
+
+[1]: https://github.com/rust-embedded/rust-spidev
+[2]: https://github.com/rust-embedded/rust-sysfs-gpio
+[3]: https://github.com/japaric/rust-cross
+[4]: https://github.com/golemparts/rppal

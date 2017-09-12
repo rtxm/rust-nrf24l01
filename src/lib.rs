@@ -20,6 +20,25 @@
 //! automatic (hardware) packet acknowlegement with optional payload, dynamic payload length and
 //! long CRC (2 bytes).
 //!
+//! # Usage
+//!
+//! Add a dependency to `nrf24l01` to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! nrf24l01 = "0.2.0"
+//! ```
+//!
+//! If you plan to compile for a Raspberry Pi, you may want to enable the `rpi_accel` feature for better
+//! performance. In that case, replace the above by:
+//!
+//! ```toml
+//! [dependencies.nrf24l01]
+//! version = 0.2.0
+//! features = ["rpi_accel"]
+//! default-features = false
+//! ```
+//!
 //! # Examples
 //!
 //! ## Simple emitter

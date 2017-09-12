@@ -1,6 +1,6 @@
 [package]
 name = "nrf24l01"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Romuald Texier-Marcadé <romuadtm@gmail.com>"]
 description = "A pure Rust user space driver for NRF24L01(+) transceivers on Linux."
 license = "MIT/Apache-2.0"
