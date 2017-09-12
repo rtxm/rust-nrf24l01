@@ -95,11 +95,19 @@
 
 
 extern crate spidev;
-extern crate sysfs_gpio;
+#[cfg(feature = "rpi_accel")]
+mod rpi_ce;
+#[cfg(not(feature = "rpi_accel"))]
+mod sysfs_ce;
 
 use std::io;
 use std::thread::sleep;
 use std::time::Duration;
+
+#[cfg(feature = "rpi_accel")]
+use rpi_ce::CEPin;
+#[cfg(not(feature = "rpi_accel"))]
+use sysfs_ce::CEPin;
 
 
 /// Supported air data rates.
@@ -294,7 +302,7 @@ const FEATURE: Register = 0x1D;
 
 /// The driver
 pub struct NRF24L01 {
-    ce: sysfs_gpio::Pin,
+    ce: CEPin,
     spi: spidev::Spidev,
     base_config: u8,
 }
@@ -447,19 +455,7 @@ impl NRF24L01 {
             .mode(spidev::SPI_MODE_0)
             .build();
         spi.configure(&options)?;
-        let ce = sysfs_gpio::Pin::new(ce_pin);
-        ce.export().or_else(|_| {
-            Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "Unable to export CE",
-            ))
-        })?;
-        ce.set_direction(sysfs_gpio::Direction::Low).or_else(|_| {
-            Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "Unable to set CE",
-            ))
-        })?;
+        let ce = CEPin::new(ce_pin)?;
         Ok(NRF24L01 {
             ce,
             spi,
@@ -476,7 +472,7 @@ impl NRF24L01 {
     /// All commands work when the device is in standby (recommended) as well as
     /// active state.
     pub fn configure(&mut self, mode: &OperatingMode) -> io::Result<()> {
-        self.ce.set_value(0).unwrap();
+        self.ce.down()?;
         // auto acknowlegement
         self.write_register(EN_AA, 0b0011_1111)?;
         // dynamic payload and payload with ACK
@@ -502,8 +498,8 @@ impl NRF24L01 {
     ///
     /// The power consumption is minimum in this mode, and the device ceases all operation.
     /// It only accepts configuration commands.
-    pub fn power_down(&self) -> io::Result<()> {
-        self.ce.set_value(0).unwrap();
+    pub fn power_down(&mut self) -> io::Result<()> {
+        self.ce.down()?;
         self.write_register(CONFIG, self.base_config)
     }
 
@@ -516,8 +512,8 @@ impl NRF24L01 {
     ///
     /// Only used in RX mode to suspend active listening.
     /// In TX mode, standby is the default state when not sending data.
-    pub fn standby(&self) -> io::Result<()> {
-        self.ce.set_value(0).unwrap(); // always returnss without error.
+    pub fn standby(&mut self) -> io::Result<()> {
+        self.ce.down()?; // always returnss without error.
         Ok(())
     }
 
@@ -525,9 +521,9 @@ impl NRF24L01 {
     ///
     /// In RX mode, call this function after a `.configure(...)`, `.standby()` or `power_up()` to
     /// accept incoming packets.
-    pub fn listen(&self) -> io::Result<()> {
+    pub fn listen(&mut self) -> io::Result<()> {
         if self.is_receiver() {
-            self.ce.set_value(1).unwrap()
+            self.ce.up()?;
         }
         Ok(())
     }
@@ -555,7 +551,7 @@ impl NRF24L01 {
     /// **Note**: this function puts the device in standby mode during
     /// the processing of the queue and restores operations when it returns *successfully*.
     /// So the `process_packet` callback should better return quickly.
-    pub fn read_all<F>(&self, mut process_packet: F) -> io::Result<u8>
+    pub fn read_all<F>(&mut self, mut process_packet: F) -> io::Result<u8>
     where
         F: FnMut(&[u8]) -> (),
     {
@@ -566,9 +562,9 @@ impl NRF24L01 {
         // message counter
         let mut count = 0u8;
         // save CE state
-        let ce_state = self.ce.get_value().unwrap(); // never fail
+        self.ce.save_state();
         // Standby
-        self.ce.set_value(0).unwrap(); // never fail
+        self.ce.down()?;
         // process queue
         while self.data_available()? {
             self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
@@ -587,7 +583,7 @@ impl NRF24L01 {
         // Clear interrupt
         self.write_register(STATUS, 0b0100_0000)?;
         // Restore previous CE state
-        self.ce.set_value(ce_state).unwrap();
+        self.ce.restore_state()?;
         Ok(count)
     }
 
@@ -658,7 +654,7 @@ impl NRF24L01 {
     /// # Errors
     /// Return Spidev errors as well as a custom io::ErrorKind::Timeout
     /// when the maximun number of retries has been reached.
-    pub fn send(&self) -> io::Result<u8> {
+    pub fn send(&mut self) -> io::Result<u8> {
         // clear TX_DS and MAX_RT
         self.write_register(STATUS, 0x30)?;
         // init retry counter
@@ -667,9 +663,9 @@ impl NRF24L01 {
         let mut packets_left = fifo_status & 0x10 == 0;
         while packets_left {
             // send with a 10us pulse
-            self.ce.set_value(1).unwrap();
+            self.ce.up()?;
             sleep(Duration::new(0, 10_000));
-            self.ce.set_value(0).unwrap();
+            self.ce.down()?;
             let mut status = 0u8;
             let mut observe = 0u8;
             // wait for ACK

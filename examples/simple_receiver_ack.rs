@@ -22,10 +22,10 @@ fn main() {
                 .read_all(|packet| {
                     println!("Received {:?} bytes", packet.len());
                     println!("Payload {:?}", packet);
-                    // prepare ack payload for next reception
-                    device.push(0, b"ack payload").unwrap();
                 })
                 .unwrap();
+            // prepare ack payload for next reception
+            device.push(0, b"ack payload").unwrap();
         }
     }
 }

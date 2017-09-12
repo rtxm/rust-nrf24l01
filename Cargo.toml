@@ -9,6 +9,11 @@ keywords = ["driver", "wireless", "radio", "transceiver", "nrf"]
 repository = "https://github.com/rtxm/rust-nrf24l01"
 homepage = "https://github.com/rtxm/rust-nrf24l01"
 
+[features]
+default = ["sysfs_gpio"]
+rpi_accel = ["rppal"]
+
 [dependencies]
-sysfs_gpio = "0.5.1"
 spidev = "0.3.0"
+sysfs_gpio = { version = "0.5.1", optional = true }
+rppal = { version = '0.1.3', optional = true }
