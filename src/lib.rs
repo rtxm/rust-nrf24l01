@@ -689,8 +689,8 @@ impl NRF24L01 {
             let mut observe = 0u8;
             // wait for ACK
             while status & 0x30 == 0 {
-                // wait at least 500us
-                sleep(Duration::new(0, 500_000));
+                // wait at least 360us
+                sleep(Duration::new(0, 360_000));
                 let outcome = self.read_register(OBSERVE_TX)?;
                 status = outcome.0;
                 observe = outcome.1;
@@ -707,12 +707,12 @@ impl NRF24L01 {
                 ));
             };
             // Success
-            // clear TX_DS
-            self.write_register(STATUS, 0x20)?;
             counter += observe & 0x0f;
             let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
             packets_left = fifo_status & 0x10 == 0;
         }
+        // clear TX_DS
+        self.write_register(STATUS, 0x20)?;
         // if all sent, return retry counter
         Ok(counter)
     }
