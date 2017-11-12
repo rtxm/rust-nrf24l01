@@ -29,8 +29,8 @@
 //! nrf24l01 = "0.2.0"
 //! ```
 //!
-//! If you plan to compile for a Raspberry Pi, you may want to enable the `rpi_accel` feature for better
-//! performance. In that case, replace the above by:
+//! If you plan to compile for a Raspberry Pi, you may want to enable the `rpi_accel` feature
+//! for better performance. In that case, replace the above by:
 //!
 //! ```toml
 //! [dependencies.nrf24l01]
@@ -296,6 +296,8 @@ const RF_SETUP: Register = 0x06;
 const STATUS: Register = 0x07;
 // Transmission quality, p 56
 const OBSERVE_TX: Register = 0x08;
+// Received Power Detector
+const RPD: Register = 0x09;
 // Pipe 0 address, p 57
 const RX_ADDR_P0: Register = 0x0A;
 // Pipe 1 address, p 57
@@ -507,6 +509,37 @@ impl NRF24L01 {
             self.base_config = base_config;
             self.power_up()
         })
+    }
+
+    /// Scan all channel.
+    ///
+    /// This function scans all channels ``nb_iter`` times, waiting ``wait_ms``
+    /// milliseconds for a carrier on each. The number of time a carrier has been
+    /// detected is placed in the ``channel_table`` array at the corresponding index.
+    ///
+    /// You don't need to call ``.configure`` before using this function, but
+    /// you must do it after if you plan to use the device as a receiver or
+    /// transmitter.
+    pub fn scan(
+        &mut self,
+        nb_iter: u32,
+        wait_ms: u32,
+        channel_table: &mut [u32; 126],
+    ) -> io::Result<()> {
+        self.write_register(EN_AA, 0u8)?;
+        for _ in 0..nb_iter {
+            for channel in 0..126 {
+                self.set_channel(channel)?;
+                self.listen()?;
+                sleep(Duration::from_millis(wait_ms as u64));
+                self.standby()?;
+                let (_, rpd) = self.read_register(RPD)?;
+                if rpd > 0 {
+                    channel_table[channel as usize] += 1;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn is_receiver(&self) -> bool {
