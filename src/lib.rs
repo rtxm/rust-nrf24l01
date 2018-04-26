@@ -100,6 +100,9 @@ pub struct RXConfig {
     pub pipe4_addr_lsb: Option<u8>,
     /// Pipe 5 LSB, defaults to None (disabled)
     pub pipe5_addr_lsb: Option<u8>,
+
+    /// Per-pipe enable auto-acknowledgement
+    pub pipes_auto_ack: [bool; 5],
 }
 
 
@@ -306,6 +309,17 @@ impl<CE: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, 
         self.send_command(&command, &mut response_buffer)
     }
 
+    fn set_auto_ack(&mut self, pipes_auto_ack: [bool; 5]) -> Result<(), Error<SPIE>> {
+        let mut register = 0;
+        for (i, auto_ack) in pipes_auto_ack.iter().enumerate() {
+            if *auto_ack {
+                register |= 1 << i;
+            }
+        }
+        // auto acknowlegement
+        self.write_register(EN_AA, register)
+    }
+
     fn configure_receiver(&mut self, config: &RXConfig) -> Result<u8, Error<SPIE>> {
         // set data rate
         // set PA level
@@ -340,6 +354,8 @@ impl<CE: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, 
             self.write_register(RX_ADDR_P5, lsb)?;
             enabled |= 0b0010_0000
         };
+        // Configure Auto-ack
+        self.set_auto_ack(config.pipes_auto_ack)?;
         // Enable configured pipes
         self.write_register(EN_RXADDR, enabled)?;
         // base config is 2 bytes for CRC and RX mode on
@@ -411,8 +427,6 @@ impl<CE: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, 
     /// active state.
     pub fn configure(&mut self, mode: &OperatingMode) -> Result<(), Error<SPIE>> {
         self.ce.set_low();
-        // auto acknowlegement
-        self.write_register(EN_AA, 0b0011_1111)?;
         // dynamic payload and payload with ACK
         self.write_register(DYNPD, 0b0011_1111)?;
         self.write_register(FEATURE, 0b0000_0110)?;
