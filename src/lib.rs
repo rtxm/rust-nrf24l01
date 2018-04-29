@@ -228,8 +228,9 @@ impl<SPIE: Debug> From<SPIE> for Error<SPIE> {
 }
 
 /// The driver
-pub struct NRF24L01<CE: OutputPin, SPI: SpiTransfer<u8>> {
+pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
     ce: CE,
+    csn: CSN,
     spi: SPI,
     base_config: u8,
 }
@@ -250,15 +251,14 @@ pub mod setup {
     }
 }
 
-impl<CE: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, SPI> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, CSN, SPI> {
     // Private methods and functions
 
     fn send_command(&mut self, data_out: &[u8], data_in: &mut [u8]) -> Result<(), Error<SPIE>> {
-        // let mut stdout = hio::hstdout().unwrap();
-        // writeln!(stdout, "send {:?}", data_out).unwrap();
         data_in.copy_from_slice(data_out);
+        self.csn.set_low();
         self.spi.transfer(data_in)?;
-        // writeln!(stdout, "recvd {:?}", data_in).unwrap();
+        self.csn.set_high();
         Ok(())
     }
 
@@ -402,18 +402,13 @@ impl<CE: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, 
     ///
     /// System IO errors
     ///
-    pub fn new(ce: CE, spi: SPI) -> Result<Self, Error<SPIE>> {
-        // TODO
-        // let options = spidev::SpidevOptions::new()
-        //     .bits_per_word(8)
-        //     .max_speed_hz(10_000_000)
-        //     .mode(spidev::SPI_MODE_0)
-        //     .build();
-        // spi.configure(&options)?;
+    pub fn new(mut ce: CE, mut csn: CSN, spi: SPI) -> Result<Self, Error<SPIE>> {
+        ce.set_low();
+        csn.set_high();
+
         Ok(NRF24L01 {
-            ce,
-            spi,
-            base_config: 0b0000_1101,
+            ce, csn, spi,
+            base_config: 0b0000_0001,
         })
     }
 
