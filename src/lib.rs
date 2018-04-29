@@ -38,6 +38,20 @@ impl Default for DataRate {
     }
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum CrcMode {
+    OneByte,
+    TwoBytes,
+}
+
+impl CrcMode {
+    fn config_mask(&self) -> u8 {
+        match *self {
+            CrcMode::OneByte => CONFIG_EN_CRC,
+            CrcMode::TwoBytes => CONFIG_EN_CRC | CONFIG_CRC0,
+        }
+    }
+}
 
 /// Supported power amplifier levels.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -103,6 +117,9 @@ pub struct RXConfig {
 
     /// Per-pipe enable auto-acknowledgement
     pub pipes_auto_ack: [bool; 5],
+
+    /// CRC
+    pub crc_mode: Option<CrcMode>,
 }
 
 
@@ -142,6 +159,9 @@ pub struct TXConfig {
     /// This is also the address on which ACK packets are received.
     /// The address is in little endian order: the first byte is the least significant one.
     pub pipe0_address: [u8; 5],
+
+    /// CRC
+    pub crc_mode: Option<CrcMode>,
 }
 
 
@@ -177,6 +197,8 @@ type Register = u8;
 
 // Base config, p 54
 const CONFIG: Register = 0;
+const CONFIG_EN_CRC: u8 = 1 << 3;
+const CONFIG_CRC0: u8 = 1 << 2;
 // Enable auto acknowlegment, p54
 const EN_AA: Register = 0x01;
 // Enabled RX addresses, p 54
@@ -360,7 +382,12 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         self.write_register(EN_RXADDR, enabled)?;
         // base config is 2 bytes for CRC and RX mode on
         // only reflect RX_DR on the IRQ pin
-        Ok(0b0011_1101)
+        let mut base_config = 0b0011_0001;
+        config.crc_mode.map(|crc_mode| {
+            base_config |= crc_mode.config_mask();
+        });
+
+        Ok(base_config)
     }
 
     fn configure_transmitter(&mut self, config: &TXConfig) -> Result<u8, Error<SPIE>> {
@@ -391,7 +418,12 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         )?;
         // base config is 2 bytes for CRC and TX mode on
         // only reflect TX_DS and MAX_RT on the IRQ pin
-        Ok(0b0100_1100)
+        let mut base_config = 0b0100_0000;
+        config.crc_mode.map(|crc_mode| {
+            base_config |= crc_mode.config_mask();
+        });
+
+        Ok(base_config)
     }
 
     // Public API
