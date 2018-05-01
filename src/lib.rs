@@ -74,6 +74,7 @@ impl Default for PALevel {
 
 /// Receiver mode configuration
 #[derive(Debug)]
+#[derive(Clone)]
 #[derive(Default)]
 pub struct RXConfig {
     /// data rate, defaults to `DataRate::R1Mbps`.
@@ -88,6 +89,8 @@ pub struct RXConfig {
     pub channel: u8,
     /// Powel level, defaults to `PALevel::Min`.
     pub pa_level: PALevel,
+
+    pub address_width: usize,
     /// Pipe 0 address
     ///
     /// This is the receiving base address.
@@ -115,8 +118,10 @@ pub struct RXConfig {
     /// Pipe 5 LSB, defaults to None (disabled)
     pub pipe5_addr_lsb: Option<u8>,
 
+    pub pipes_static_packet_len: [Option<u8>; 6],
+
     /// Per-pipe enable auto-acknowledgement
-    pub pipes_auto_ack: [bool; 5],
+    pub pipes_auto_ack: [bool; 6],
 
     /// CRC
     pub crc_mode: Option<CrcMode>,
@@ -125,6 +130,7 @@ pub struct RXConfig {
 
 /// Transmitter mode configuration
 #[derive(Debug)]
+#[derive(Clone)]
 #[derive(Default)]
 pub struct TXConfig {
     /// data rate, defaults to `DataRate::R1Mbps`
@@ -154,6 +160,9 @@ pub struct TXConfig {
     /// 0 <= `retry_delay` <= 15. Default is 0, recommended is > 1.
     /// Any value above 15 is capped to 15.
     pub retry_delay: u8, // [0, 15]
+
+    pub address_width: usize,
+
     /// Destination address, should match an address on the receiver end.
     ///
     /// This is also the address on which ACK packets are received.
@@ -199,10 +208,13 @@ type Register = u8;
 const CONFIG: Register = 0;
 const CONFIG_EN_CRC: u8 = 1 << 3;
 const CONFIG_CRC0: u8 = 1 << 2;
+const CONFIG_PWR_UP: u8 = 1 << 1;
+const CONFIG_PRIM_RX: u8 = 1;
 // Enable auto acknowlegment, p54
 const EN_AA: Register = 0x01;
 // Enabled RX addresses, p 54
 const EN_RXADDR: Register = 0x02;
+const SETUP_AW: Register = 0x03;
 // Setup of automatic retransmission, p 55
 const SETUP_RETR: Register = 0x04;
 // Channel, p 55
@@ -214,6 +226,10 @@ const RF_SETUP: Register = 0x06;
 // We may need to write to it to clear some flags (RX_DR, TX_DS, MAX_RT)
 // p 56
 const STATUS: Register = 0x07;
+const STATUS_RX_DR: u8 = 1 << 6;
+const STATUS_TX_DS: u8 = 1 << 5;
+const STATUS_MAX_RT: u8 = 1 << 4;
+const STATUS_RX_P_NO: u8 = 0b111 << 1;
 // Transmission quality, p 56
 const OBSERVE_TX: Register = 0x08;
 // Pipe 0 address, p 57
@@ -228,14 +244,23 @@ const RX_ADDR_P3: Register = 0x0D;
 const RX_ADDR_P4: Register = 0x0E;
 // Pipe 5 address, p 57
 const RX_ADDR_P5: Register = 0x0F;
+// Number of bytes in RX payload for each of the pipes
+const RX_PW: [Register; 6] = [0x11, 0x12, 0x13, 0x14, 0x15, 0x16];
 // Destination address, p 57
 const TX_ADDR: Register = 0x10;
 // FIFO status (RX & TX), p 58
 const FIFO_STATUS: Register = 0x17;
+// TX FIFO empty flag
+const FIFO_STATUS_TX_FULL: u8 = 1 << 5;
+const FIFO_STATUS_TX_EMPTY: u8 = 1 << 4;
+const FIFO_STATUS_RX_FULL: u8 = 1 << 1;
+const FIFO_STATUS_RX_EMPTY: u8 = 1 << 0;
 // Enable dynamic payload length (requires EN_DPL and ENAA_PX), p 59
 const DYNPD: Register = 0x1C;
 //  Feature register (content EN_DPL, EN_ACK_PAY...), p 59
 const FEATURE: Register = 0x1D;
+const FEATURE_EN_DPL: u8 = 1 << 2;
+const FEATURE_EN_ACK_PAY: u8 = 1 << 1;
 
 
 #[derive(Debug)]
@@ -250,10 +275,11 @@ impl<SPIE: Debug> From<SPIE> for Error<SPIE> {
 }
 
 /// The driver
-pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
+pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>, D: DelayUs<u16>> {
     ce: CE,
     csn: CSN,
     spi: SPI,
+    delay: D,
     base_config: u8,
 }
 
@@ -269,18 +295,32 @@ pub mod setup {
     }
 
     pub fn clock_mhz() -> u32 {
-        10
+        8
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, CSN, SPI> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug, D: DelayUs<u16>> NRF24L01<CE, CSN, SPI, D> {
     // Private methods and functions
 
     fn send_command(&mut self, data_out: &[u8], data_in: &mut [u8]) -> Result<(), Error<SPIE>> {
         data_in.copy_from_slice(data_out);
         self.csn.set_low();
+        self.delay.delay_us(2);
         self.spi.transfer(data_in)?;
+        self.delay.delay_us(50);
         self.csn.set_high();
+        self.delay.delay_us(50);
+/*
+        let mut stdout = hio::hstdout().unwrap();
+        for b in data_out {
+            write!(stdout, "{:02X} ", b);
+        }
+        write!(stdout, ">>");
+        for b in data_in {
+            write!(stdout, " {:02X}", b);
+        }
+        writeln!(stdout, "");
+*/
         Ok(())
     }
 
@@ -324,14 +364,15 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         }
     }
 
-    fn set_full_address(&mut self, pipe: Register, address: [u8; 5]) -> Result<(), Error<SPIE>> {
+    fn set_full_address(&mut self, pipe: Register, address: &[u8]) -> Result<(), Error<SPIE>> {
         let mut response_buffer = [0u8; 6];
         let mut command = [W_REGISTER | pipe, 0, 0, 0, 0, 0];
-        command[1..].copy_from_slice(&address);
-        self.send_command(&command, &mut response_buffer)
+        let len = 1 + address.len();
+        command[1..len].copy_from_slice(&address);
+        self.send_command(&command[0..len], &mut response_buffer[0..len])
     }
 
-    fn set_auto_ack(&mut self, pipes_auto_ack: [bool; 5]) -> Result<(), Error<SPIE>> {
+    fn set_auto_ack(&mut self, pipes_auto_ack: [bool; 6]) -> Result<(), Error<SPIE>> {
         let mut register = 0;
         for (i, auto_ack) in pipes_auto_ack.iter().enumerate() {
             if *auto_ack {
@@ -348,12 +389,16 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         self.setup_rf(config.data_rate, config.pa_level)?;
         // set channel
         self.set_channel(config.channel)?;
+        // set address width
+        let aw = config.address_width;
+        assert!(aw >= 3 && aw <= 5);
+        self.write_register(SETUP_AW, aw as u8 - 2)?;
         // set Pipe 0 address
-        self.set_full_address(RX_ADDR_P0, config.pipe0_address)?;
+        self.set_full_address(RX_ADDR_P0, &config.pipe0_address[0..aw])?;
         let mut enabled = 1u8;
         // Pipe 1
         if let Some(address) = config.pipe1_address {
-            self.set_full_address(RX_ADDR_P1, address)?;
+            self.set_full_address(RX_ADDR_P1, &address[0..aw])?;
             enabled |= 0b0000_0010
         };
         // Pipe 2
@@ -376,13 +421,37 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
             self.write_register(RX_ADDR_P5, lsb)?;
             enabled |= 0b0010_0000
         };
+        // Configure dynamic payload lengths
+        let mut feature = 0;
+        if config.pipes_static_packet_len.iter().any(|pipe_packet_len| pipe_packet_len.is_some()) {
+            feature |= FEATURE_EN_DPL;
+        }
+        if config.pipes_auto_ack.iter().any(|pipe_auto_ack| *pipe_auto_ack) {
+            feature |= FEATURE_EN_ACK_PAY;
+        }
+        self.write_register(FEATURE, feature)?;
+        // Configure static payload lengths
+        let mut dynpd = 0;
+        for (i, c) in config.pipes_static_packet_len.iter().enumerate() {
+            match *c {
+                Some(len) => {
+                    assert!(len < (1 << 6));
+                    self.write_register(RX_PW[i], len)?;
+                }
+                None => {
+                    // Enable dynamic payload length
+                    dynpd |= 1 << i;
+                }
+            }
+        }
+        self.write_register(DYNPD, dynpd)?;
         // Configure Auto-ack
         self.set_auto_ack(config.pipes_auto_ack)?;
         // Enable configured pipes
         self.write_register(EN_RXADDR, enabled)?;
         // base config is 2 bytes for CRC and RX mode on
         // only reflect RX_DR on the IRQ pin
-        let mut base_config = 0b0011_0001;
+        let mut base_config = 0b0111_0000 | CONFIG_PRIM_RX;
         config.crc_mode.map(|crc_mode| {
             base_config |= crc_mode.config_mask();
         });
@@ -396,29 +465,25 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         self.setup_rf(config.data_rate, config.pa_level)?;
         // set channel
         self.set_channel(config.channel)?;
+        // set address width
+        let aw = config.address_width;
+        assert!(aw >= 3 && aw <= 5);
+        self.write_register(SETUP_AW, aw as u8 - 2)?;
         // set destination and Pipe 0 address
-        self.set_full_address(RX_ADDR_P0, config.pipe0_address)?;
-        self.set_full_address(TX_ADDR, config.pipe0_address)?;
+        self.set_full_address(RX_ADDR_P0, &config.pipe0_address[0..aw])?;
+        self.set_full_address(TX_ADDR, &config.pipe0_address[0..aw])?;
         // disable other pipes
         self.write_register(EN_RXADDR, 1u8)?;
         // retransmission settings
-        let retry_bits: u8 = if config.max_retries < 16 {
-            config.max_retries
-        } else {
-            15
-        };
-        let retry_delay_bits: u8 = if config.retry_delay < 16 {
-            config.retry_delay << 4
-        } else {
-            0xF0
-        };
+        let retry_bits: u8 = config.max_retries.min(15);
+        let retry_delay_bits: u8 = config.retry_delay.min(0xF);
         self.write_register(
             SETUP_RETR,
-            retry_delay_bits | retry_bits,
+            (retry_delay_bits << 4) | retry_bits,
         )?;
         // base config is 2 bytes for CRC and TX mode on
         // only reflect TX_DS and MAX_RT on the IRQ pin
-        let mut base_config = 0b0100_0000;
+        let mut base_config = 0b0111_0000;
         config.crc_mode.map(|crc_mode| {
             base_config |= crc_mode.config_mask();
         });
@@ -434,13 +499,13 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
     ///
     /// System IO errors
     ///
-    pub fn new(mut ce: CE, mut csn: CSN, spi: SPI) -> Result<Self, Error<SPIE>> {
+    pub fn new(mut ce: CE, mut csn: CSN, spi: SPI, delay: D) -> Result<Self, Error<SPIE>> {
         ce.set_low();
         csn.set_high();
 
         Ok(NRF24L01 {
-            ce, csn, spi,
-            base_config: 0b0000_0001,
+            ce, csn, spi, delay,
+            base_config: 0b0000_0000,
         })
     }
 
@@ -454,18 +519,19 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
     /// active state.
     pub fn configure(&mut self, mode: &OperatingMode) -> Result<(), Error<SPIE>> {
         self.ce.set_low();
-        // dynamic payload and payload with ACK
-        self.write_register(DYNPD, 0b0011_1111)?;
-        self.write_register(FEATURE, 0b0000_0110)?;
 
         // Mode specific configuration
         match *mode {
             OperatingMode::RX(ref config) => self.configure_receiver(config),
             OperatingMode::TX(ref config) => self.configure_transmitter(config),
         }.and_then(|base_config| {
+            // Reset status
+            self.write_register(STATUS, STATUS_RX_DR | STATUS_TX_DS | STATUS_MAX_RT);
             // Go!
             self.base_config = base_config;
-            self.power_up()
+            self.power_up()?;
+            self.delay.delay_us(150);
+            Ok(())
         })
     }
 
@@ -479,13 +545,15 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
     /// It only accepts configuration commands.
     pub fn power_down(&mut self) -> Result<(), Error<SPIE>> {
         self.ce.set_low();
+        self.base_config &= !CONFIG_PWR_UP;
         let base_config = self.base_config;
         self.write_register(CONFIG, base_config)
     }
 
     /// Power the device up for full operation.
     pub fn power_up(&mut self) -> Result<(), Error<SPIE>> {
-        let base_config = self.base_config | 0b0000_0110;
+        self.base_config |= CONFIG_PWR_UP;
+        let base_config = self.base_config;
         self.write_register(CONFIG, base_config)
     }
 
@@ -509,15 +577,25 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         Ok(())
     }
 
+    pub fn is_connected(&mut self) -> Result<bool, Error<SPIE>> {
+        self.read_register(SETUP_AW)
+            .map(|(_, setup_aw)| setup_aw >= 1 && setup_aw <= 3)
+    }
 
-    /// Is there any incoming data to read?
+    /// Is there any incoming data to read? Return the pipe number.
     ///
-    /// Works in both RX and TX modes. In TX mode, this function returns true if
-    /// a ACK payload has been received.
-    pub fn data_available(&mut self) -> Result<bool, Error<SPIE>> {
-        self.read_register(FIFO_STATUS).and_then(
-            |(_, fifo_status)| {
-                Ok(fifo_status.trailing_zeros() >= 1)
+    /// Works in RX mode.
+    pub fn data_available(&mut self) -> Result<Option<u8>, Error<SPIE>> {
+        self.read_register(FIFO_STATUS).map(
+            |(status, fifo_status)| {
+                // let mut stdout = hio::hstdout().unwrap();
+                // writeln!(stdout, "status={:02X}\tfifo_status={:02X}", status, fifo_status);
+                if fifo_status & FIFO_STATUS_RX_EMPTY == 0 {
+                    let rx_p_no = status & STATUS_RX_P_NO;
+                    Some(rx_p_no >> 1)
+                } else {
+                    None
+                }
             },
         )
     }
@@ -547,27 +625,28 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         // Standby
         self.ce.set_low();
         // process queue
-        while self.data_available()? {
-            self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
+        while let Some(pipe_no) = self.data_available()? {
+            let mut stdout = hio::hstdout().unwrap();
+            writeln!(stdout, "Read on pipe {}", pipe_no);
+
+            self.send_command(&[R_RX_PL_WID, 0xff], &mut pl_wd)?;
             let width = pl_wd[1] as usize;
-            if width != 0 {
-                // can it be false?
-                let ubound = (width + 1).min(33);
-                self.send_command(
-                    &out_buffer[..ubound],
-                    &mut receive_buffer[..ubound],
-                )?;
-                process_packet(&receive_buffer[1..ubound]);
-                count += 1;
-            }
+            // if width < 1 {
+            //     break;
+            // }
+            let ubound = (width + 1).min(33);
+            self.send_command(
+                &out_buffer[..ubound],
+                &mut receive_buffer[..ubound],
+            )?;
+            process_packet(&receive_buffer[1..ubound]);
+            count += 1;
         }
         // Clear interrupt
         self.write_register(STATUS, 0b0100_0000)?;
         // Restore previous CE state
         if ce_state {
             self.ce.set_high();
-        } else {
-            self.ce.set_low();
         }
         Ok(count)
     }
@@ -631,45 +710,24 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
     /// The payloads that failed to be sent remain in the TX queue.
     /// You can call `.send()` again to relaunch a send/retry cycle or
     /// call `.flush_output` to clear the queue.
-    pub fn send<D: DelayUs<u16>>(&mut self, d: &mut D) -> Result<u8, Error<SPIE>> {
-        // clear TX_DS and MAX_RT
-        self.write_register(STATUS, 0x30)?;
-        // init retry counter
-        let mut counter = 0u8;
-        let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
-        let mut packets_left = fifo_status & 0x10 == 0;
-        while packets_left {
-            // send with a 10us pulse
+    pub fn send(&mut self) -> Result<(), Error<SPIE>> {
+        // let mut stdout = hio::hstdout().unwrap();
+        // let r = self.read_register(CONFIG)?;
+        // writeln!(stdout, "config={:02X}", r.1);
+
+        let mut status = self.read_register(FIFO_STATUS)?;
+        while status.1 & FIFO_STATUS_TX_EMPTY == 0 {
+            // writeln!(stdout, "status={:02X}\tfifo_status={:02X}", status.0, status.1);
             self.ce.set_high();
-            d.delay_us(10);
+            self.delay.delay_us(10);
             self.ce.set_low();
-            let mut status = 0u8;
-            let mut observe = 0u8;
-            // wait for ACK
-            while status & 0x30 == 0 {
-                // wait at least 500us
-                d.delay_us(500);
-                let outcome = self.read_register(OBSERVE_TX)?;
-                status = outcome.0;
-                observe = outcome.1;
-            }
-            // check MAX_RT
-            if status & 0x10 > 0 {
-                // failure
-                // clear MAX_RT
-                self.write_register(STATUS, 0x10)?;
-                // force return
-                panic!("Maximum number of retries reached!");
-            };
-            // Success
-            // clear TX_DS
-            self.write_register(STATUS, 0x20)?;
-            counter += observe & 0x0f;
-            let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
-            packets_left = fifo_status & 0x10 == 0;
+            // clear TX_DS and MAX_RT
+            self.write_register(STATUS, STATUS_TX_DS | STATUS_MAX_RT)?;
+            self.delay.delay_us(10);
+            status = self.read_register(FIFO_STATUS)?;
         }
-        // if all sent, return retry counter
-        Ok(counter)
+        self.ce.set_low();
+        Ok(())
     }
 
     /// Clear input queue.
