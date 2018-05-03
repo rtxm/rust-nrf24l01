@@ -31,7 +31,7 @@ pub mod setup;
 mod registers;
 use registers::{Register, Config, Status, SetupAw};
 mod command;
-use command::{Command, ReadRegister, WriteRegister};
+use command::{Command, ReadRegister, WriteRegister, Nop};
 mod payload;
 pub use payload::Payload;
 mod error;
@@ -74,10 +74,14 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         ce.set_low();
         csn.set_high();
 
+        // Reset value
+        let mut config = Config(0b0000_1000);
+        config.set_mask_rx_dr(true);
+        config.set_mask_tx_ds(true);
+        config.set_mask_max_rt(true);
         let mut device = NRF24L01 {
             ce, csn, spi, delay,
-            // Reset value
-            config: Config(0b0000_1000),
+            config,
         };
         assert!(device.is_connected().unwrap());
 
@@ -100,15 +104,15 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
 impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug, D: DelayUs<u16>> Device for NRF24L01<CE, CSN, SPI, D> {
     type Error = Error<SPIE>;
 
+    fn delay_us(&mut self, delay: u16) {
+        self.delay.delay_us(delay);
+    }
+    
     fn ce_enable(&mut self) {
-        let mut stdout = hio::hstdout().unwrap();
-        writeln!(stdout, "CE high");
         self.ce.set_high();
     }
 
     fn ce_disable(&mut self) {
-        let mut stdout = hio::hstdout().unwrap();
-        writeln!(stdout, "CE low");
         self.ce.set_low();
     }
 
@@ -120,24 +124,21 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         // Serialize the command
         command.encode(buf);
 
-        let mut stdout = hio::hstdout().unwrap();
-        for b in buf.iter() {
-            write!(stdout, "{:02X} ", b);
-        }
-        write!(stdout, ">>");
+        // let mut stdout = hio::hstdout().unwrap();
+        // for b in buf.iter() {
+        //     write!(stdout, "{:02X} ", b);
+        // }
+        // write!(stdout, ">>");
 
         // SPI transaction
         self.csn.set_low();
-        //self.delay.delay_us(2);
         self.spi.transfer(buf)?;
-        //self.delay.delay_us(50);
         self.csn.set_high();
-        //self.delay.delay_us(50);
 
-        for b in buf.iter() {
-            write!(stdout, " {:02X}", b);
-        }
-        write!(stdout, "\n");
+        // for b in buf.iter() {
+        //     write!(stdout, " {:02X}", b);
+        // }
+        // write!(stdout, "\n");
         // Parse response
         let status = Status(buf[0]);
         let response = C::decode_response(buf);
@@ -154,22 +155,19 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         self.send_command(&ReadRegister::new())
     }
 
-    fn update_config<F>(&mut self, f: F) -> Result<(), Self::Error>
-        where F: FnOnce(&mut Config)
+    fn update_config<F, R>(&mut self, f: F) -> Result<R, Self::Error>
+        where F: FnOnce(&mut Config) -> R
     {
         // Mutate
         let old_config = self.config.clone();
-        f(&mut self.config);
+        let result = f(&mut self.config);
 
         if self.config != old_config {
             let config = self.config.clone();
-            let mut stdout = hio::hstdout().unwrap();
-            writeln!(stdout, "config={:08b}", config.0);
             self.write_register(config)?;
         }
-        Ok(())
+        Ok(result)
     }
-
     
     // fn setup_rf(&mut self, rate: DataRate, level: PALevel) -> Result<(), Error<SPIE>> {
     //     let rate_bits: u8 = match rate {

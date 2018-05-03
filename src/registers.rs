@@ -9,7 +9,7 @@ pub trait Register {
 
 /// Common for all registers with 1 bytes of data
 macro_rules! impl_register {
-    ($name:ident, $addr:expr) => (
+    ($name: ident, $addr: expr) => (
         impl Register for $name {
             fn addr() -> u8 {
                 $addr
@@ -42,6 +42,30 @@ macro_rules! impl_register {
     )
 }
 
+macro_rules! impl_buffered_register {
+    ($name: ident, $addr: expr, $size: expr) => (
+        impl Register for $name {
+            fn addr() -> u8 {
+                $addr
+            }
+
+            fn data_bytes() -> usize {
+                $size
+            }
+
+            fn encode(&self, buf: &mut [u8]) {
+                buf.copy_from_slice(&self.0);
+            }
+
+            fn decode(buf: &[u8]) -> Self {
+                let mut addr = [0; $size];
+                addr.copy_from_slice(buf);
+                $name(addr)
+            }
+        }
+    )
+}
+
 bitfield! {
     pub struct Config(u8);
     impl Debug;
@@ -65,12 +89,46 @@ bitfield! {
     /// * `0`: PTX
     pub prim_rx, set_prim_rx: 0;
 }
-
 impl_register!(Config, 0x00);
+
+/// Enable Auto Acknowledgment
+pub struct EnAa(pub u8);
+impl_register!(EnAa, 0x01);
+
+impl EnAa {
+    pub fn enaa_p(&self, pipe_no: usize) -> bool {
+        let mask = 1 << pipe_no;
+        self.0 & mask == mask
+    }
+
+    pub fn set_enaa_p(&mut self, pipe_no: usize, enable: bool) {
+        let mask = 1 << pipe_no;
+        if enable {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask;
+        }
+    }
+
+    pub fn from_bools(bools: &[bool; 6]) -> Self {
+        let mut register = EnAa(0b0011_1111);
+        for (i, b) in bools.iter().enumerate() {
+            register.set_enaa_p(i, *b);
+        }
+        register
+    }
+    
+    pub fn to_bools(&self) -> [bool; 6] {
+        let mut bools = [true; 6];
+        for (i, b) in bools.iter_mut().enumerate() {
+            *b = self.enaa_p(i);
+        }
+        bools
+    }
+}
 
 #[derive(Debug)]
 pub struct EnRxaddr(u8);
-
 impl_register!(EnRxaddr, 0x02);
 
 /// Enabled RX Addresses
@@ -100,7 +158,6 @@ bitfield! {
     /// * `0b11`: 5 bytes
     pub u8, aw, set_aw: 1, 0;
 }
-
 impl_register!(SetupAw, 0x03);
 
 bitfield! {
@@ -113,7 +170,6 @@ bitfield! {
     /// Auto Retransmit Count
     pub u8, arc, set_arc: 3, 0;
 }
-    
 impl_register!(SetupRetr, 0x04);
 
 bitfield! {
@@ -124,7 +180,6 @@ bitfield! {
     /// Frequency, that is `2400 + rf_ch` Mhz
     pub u8, rf_ch, set_rf_ch: 6, 0;
 }
-
 impl_register!(RfCh, 0x05);
 
 bitfield! {
@@ -143,7 +198,6 @@ bitfield! {
     /// * `11`: 0 dBm
     pub u8, rf_pwr, set_rf_pwr: 2, 1;
 }
-
 impl_register!(RfSetup, 0x06);
 
 bitfield! {
@@ -163,7 +217,6 @@ bitfield! {
     /// TX FIFO full flag
     pub tx_full, _: 0;
 }
-
 impl_register!(Status, 0x07);
 
 bitfield! {
@@ -173,30 +226,13 @@ bitfield! {
     pub u8, plos_cnt, _: 7, 4;
     pub u8, arc_cnt, _: 3, 0;
 }
-
 impl_register!(ObserveTx, 0x08);
 
+pub struct RxAddrP0(pub [u8; 5]);
+impl_buffered_register!(RxAddrP0, 0x0A, 5);
+
 pub struct TxAddr(pub [u8; 5]);
-
-impl Register for TxAddr {
-    fn addr() -> u8 {
-        0x10
-    }
-
-    fn data_bytes() -> usize {
-        5
-    }
-
-    fn encode(&self, buf: &mut [u8]) {
-        buf.copy_from_slice(&self.0);
-    }
-
-    fn decode(buf: &[u8]) -> Self {
-        let mut addr = [0; 5];
-        addr.copy_from_slice(buf);
-        TxAddr(addr)
-    }
-}
+impl_buffered_register!(TxAddr, 0x10, 5);
 
 bitfield! {
     /// Status register, always received on MISO while command is sent
@@ -214,6 +250,5 @@ bitfield! {
     /// RX FIFO empty flag
     pub rx_empty, _: 0;
 }
-
 impl_register!(FifoStatus, 0x17);
 

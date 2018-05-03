@@ -8,6 +8,8 @@ use registers::{Register, Config, Status};
 pub trait Device {
     type Error;
 
+    fn delay_us(&mut self, delay: u16);
+
     fn ce_enable(&mut self);
     fn ce_disable(&mut self);
     /// Helper; the receiving during RX and sending during TX require `CE`
@@ -21,11 +23,11 @@ pub trait Device {
         self.ce_enable();
         r
     }
-    
+
     fn send_command<C: Command>(&mut self, command: &C) -> Result<(Status, C::Response), Self::Error>;
     fn write_register<R: Register>(&mut self, register: R) -> Result<Status, Self::Error>;
     fn read_register<R: Register>(&mut self) -> Result<(Status, R), Self::Error>;
 
-    fn update_config<F>(&mut self, f: F) -> Result<(), Self::Error>
-        where F: FnOnce(&mut Config);
+    fn update_config<F, R>(&mut self, f: F) -> Result<R, Self::Error>
+        where F: FnOnce(&mut Config) -> R;
 }

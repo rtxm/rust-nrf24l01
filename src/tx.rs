@@ -6,11 +6,11 @@ use standby::StandbyMode;
 use payload::Payload;
 use config::Configuration;
 
-use core::fmt::Write;
-use cortex_m_semihosting::hio;
-
 /// Represents **TX Mode** and the associated **TX Settling** and
-/// **Standby-II** states.
+/// **Standby-II** states
+///
+/// **" It is important to never keep the nRF24L01 in TX mode for more
+/// than 4ms at a time."**
 pub struct TxMode<D: Device> {
     device: D,
 }
@@ -51,8 +51,8 @@ impl<D: Device> TxMode<D> {
 
     /// Does the TX FIFO have space?
     pub fn can_send(&mut self) -> Result<bool, D::Error> {
-        self.is_full()
-            .map(|full| !full)
+        let full = self.is_full()?;
+        Ok(!full)
     }
 
     /// Send asynchronously
@@ -66,17 +66,9 @@ impl<D: Device> TxMode<D> {
     pub fn wait_empty(&mut self) -> Result<(), D::Error> {
         if ! self.is_empty()? {
             self.device.ce_enable();
-            let mut n = 0usize;
-            while n < 5 && ! self.is_empty()?  {
-                n += 1;
-                let o = self.observe()?;
-                let mut stdout = hio::hstdout().unwrap();
-                writeln!(stdout, "plos={:X}\tarc={:X}", o.plos_cnt(), o.arc_cnt());
-            }
-            self.device.ce_disable();
+            while ! self.is_empty()? {}
         }
-        // let mut stdout = hio::hstdout().unwrap();
-        // writeln!(stdout, "TX is empty!");
+        self.device.ce_disable();
 
         Ok(())
     }
