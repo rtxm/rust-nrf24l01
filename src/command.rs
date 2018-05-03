@@ -54,7 +54,7 @@ impl<R: Register> Command for WriteRegister<R> {
     }
 
     fn encode(&self, buf: &mut [u8]) {
-        buf[0] = R::addr();
+        buf[0] = 0b10_0000 | R::addr();
         self.register.encode(&mut buf[1..]);
     }
 
