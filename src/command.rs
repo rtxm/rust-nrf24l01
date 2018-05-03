@@ -128,5 +128,47 @@ impl Command for ReadRxPayloadWidth {
     }
 }
 
-pub struct Nop {
+pub struct FlushRx;
+
+impl Command for FlushRx {
+    fn len(&self) -> usize {
+        1
+    }
+
+    fn encode(&self, buf: &mut [u8]) {
+        buf[0] = 0b1110_0010;
+    }
+
+    type Response = ();
+    fn decode_response(_: &[u8]) -> Self::Response {}
+}
+
+pub struct FlushTx;
+
+impl Command for FlushTx {
+    fn len(&self) -> usize {
+        1
+    }
+
+    fn encode(&self, buf: &mut [u8]) {
+        buf[0] = 0b1110_0001;
+    }
+
+    type Response = ();
+    fn decode_response(_: &[u8]) -> Self::Response {}
+}
+
+pub struct Nop;
+
+impl Command for Nop {
+    fn len(&self) -> usize {
+        1
+    }
+
+    fn encode(&self, buf: &mut [u8]) {
+        buf[0] = 0b1111_1111;
+    }
+
+    type Response = ();
+    fn decode_response(_: &[u8]) -> Self::Response {}
 }
