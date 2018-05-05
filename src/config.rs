@@ -149,15 +149,38 @@ pub trait Configuration {
         lengths: &[Option<u8>; PIPES_COUNT]
     ) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
         // Enable dynamic payload lengths
-        let dynpd = Dynpd::from_bools(
-            lengths
-                .iter()
-                .map(|length| length.is_none())
-        );
+        let mut bools = [true; PIPES_COUNT];
+        for (i, length) in lengths.iter().enumerate() {
+            bools[i] = length.is_none();
+        }
+        let dynpd = Dynpd::from_bools(&bools);
+        if dynpd.0 != 0 {
+            self.device()
+                .update_register::<Feature, _, _>(|feature| {
+                    feature.set_en_dpl(true);
+                })?;
+        }
         self.device()
             .write_register(dynpd)?;
 
-        // TODO: set RX_PW_P*
+        // Set static payload lengths
+        macro_rules! set_rx_pw {
+            ($name: ident, $index: expr) => ({
+                use registers::$name;
+                let length = lengths[$index]
+                    .unwrap_or(0);
+                let mut register = $name(0);
+                register.set(length);
+                self.device()
+                    .write_register(register)?;
+            })
+        }
+        set_rx_pw!(RxPwP0, 0);
+        set_rx_pw!(RxPwP1, 1);
+        set_rx_pw!(RxPwP2, 2);
+        set_rx_pw!(RxPwP3, 3);
+        set_rx_pw!(RxPwP4, 4);
+        set_rx_pw!(RxPwP5, 5);
 
         Ok(())
     }
