@@ -243,6 +243,27 @@ impl_buffered_register!(RxAddrP0, 0x0A, 5);
 pub struct TxAddr(pub [u8; 5]);
 impl_buffered_register!(TxAddr, 0x10, 5);
 
+macro_rules! def_rx_pw {
+    ($name: ident, $addr: expr) => (
+        bitfield! {
+            /// Static payload length for RX
+            pub struct $name(u8);
+            impl Debug;
+
+            /// Number of bytes in RX payload in data pipe (max: 32)
+            pub u8, get, set: 5, 0;
+        }
+        impl_register!($name, $addr);
+    )
+}
+
+def_rx_pw!(RxPwP0, 0x11);
+def_rx_pw!(RxPwP1, 0x12);
+def_rx_pw!(RxPwP2, 0x13);
+def_rx_pw!(RxPwP3, 0x14);
+def_rx_pw!(RxPwP4, 0x15);
+def_rx_pw!(RxPwP5, 0x16);
+
 bitfield! {
     /// Status register, always received on MISO while command is sent
     /// on MOSI.
