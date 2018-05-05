@@ -37,7 +37,7 @@ mod error;
 pub use error::Error;
 
 mod device;
-use device::Device;
+pub use device::Device;
 mod standby;
 pub use standby::StandbyMode;
 mod rx;

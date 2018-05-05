@@ -87,10 +87,10 @@ macro_rules! def_pipes_accessors {
                 }
             }
 
-            pub fn from_bools<B: Iterator<Item=bool>>(bools: B) -> Self {
+            pub fn from_bools(bools: &[bool; PIPES_COUNT]) -> Self {
                 let mut register = $name($default);
-                for (i, b) in bools.take(PIPES_COUNT).enumerate() {
-                    register.$setter(i, b);
+                for (i, b) in bools.iter().enumerate() {
+                    register.$setter(i, *b);
                 }
                 register
             }

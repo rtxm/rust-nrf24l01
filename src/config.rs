@@ -115,9 +115,9 @@ pub trait Configuration {
         Ok(register.to_bools())
     }
 
-    fn set_auto_ack<B: Iterator<Item=bool>>(&mut self, bools: B) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+    fn set_auto_ack(&mut self, bools: &[bool; PIPES_COUNT]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
         // Convert back
-        let register = EnAa::from_bools(bools.take(PIPES_COUNT));
+        let register = EnAa::from_bools(bools);
         // Write back
         self.device()
             .write_register(register)?;
