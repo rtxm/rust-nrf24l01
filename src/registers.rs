@@ -1,3 +1,5 @@
+use PIPES_COUNT;
+
 pub trait Register {
     /// Address in the register map
     fn addr() -> u8;

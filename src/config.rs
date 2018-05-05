@@ -1,6 +1,7 @@
 use command::{FlushRx, FlushTx, Nop};
 use registers::{RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw};
 use device::Device;
+use PIPES_COUNT;
 
 /// Supported air data rates.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -108,15 +109,15 @@ pub trait Configuration {
         Ok(())
     }
 
-    fn get_auto_ack(&mut self) -> Result<[bool; 6], <<Self as Configuration>::Inner as Device>::Error> {
+    fn get_auto_ack(&mut self) -> Result<[bool; PIPES_COUNT], <<Self as Configuration>::Inner as Device>::Error> {
         // Read
         let (_, register) = self.device().read_register::<EnAa>()?;
         Ok(register.to_bools())
     }
 
-    fn set_auto_ack(&mut self, bools: &[bool; 6]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+    fn set_auto_ack<B: Iterator<Item=bool>>(&mut self, bools: B) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
         // Convert back
-        let register = EnAa::from_bools(bools);
+        let register = EnAa::from_bools(bools.take(PIPES_COUNT));
         // Write back
         self.device()
             .write_register(register)?;

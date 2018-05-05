@@ -45,6 +45,8 @@ pub use rx::RxMode;
 mod tx;
 pub use tx::TxMode;
 
+pub const PIPES_COUNT: usize = 6;
+
 
 /// Driver for the nRF24L01+
 // TODO: interrupt resets
