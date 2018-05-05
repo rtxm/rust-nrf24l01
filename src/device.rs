@@ -8,8 +8,6 @@ use registers::{Register, Config, Status};
 pub trait Device {
     type Error;
 
-    fn delay_us(&mut self, delay: u16);
-
     fn ce_enable(&mut self);
     fn ce_disable(&mut self);
     /// Helper; the receiving during RX and sending during TX require `CE`

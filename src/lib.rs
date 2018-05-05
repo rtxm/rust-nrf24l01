@@ -18,7 +18,6 @@ use core::fmt::Debug;
 use embedded_hal::digital::OutputPin;
 use embedded_hal::spi;
 use embedded_hal::blocking::spi::Transfer as SpiTransfer;
-use embedded_hal::blocking::delay::DelayUs;
 
 use core::fmt::Write;
 use cortex_m_semihosting::hio;
@@ -50,23 +49,22 @@ pub const PIPES_COUNT: usize = 6;
 
 /// Driver for the nRF24L01+
 // TODO: interrupt resets
-pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>, D: DelayUs<u16>> {
+pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
     ce: CE,
     csn: CSN,
     spi: SPI,
-    delay: D,
     config: Config,
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug, D: DelayUs<u16>> fmt::Debug for NRF24L01<CE, CSN, SPI, D> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> fmt::Debug for NRF24L01<CE, CSN, SPI> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "NRF24L01")
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug, D: DelayUs<u16>> NRF24L01<CE, CSN, SPI, D> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, CSN, SPI> {
     /// Construct a new driver instance.
-    pub fn new(mut ce: CE, mut csn: CSN, spi: SPI, delay: D) -> Result<StandbyMode<Self>, Error<SPIE>> {
+    pub fn new(mut ce: CE, mut csn: CSN, spi: SPI) -> Result<StandbyMode<Self>, Error<SPIE>> {
         ce.set_low();
         csn.set_high();
 
@@ -76,7 +74,7 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         config.set_mask_tx_ds(true);
         config.set_mask_max_rt(true);
         let mut device = NRF24L01 {
-            ce, csn, spi, delay,
+            ce, csn, spi,
             config,
         };
         assert!(device.is_connected().unwrap());
@@ -97,13 +95,9 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug, D: DelayUs<u16>> Device for NRF24L01<CE, CSN, SPI, D> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> Device for NRF24L01<CE, CSN, SPI> {
     type Error = Error<SPIE>;
 
-    fn delay_us(&mut self, delay: u16) {
-        self.delay.delay_us(delay);
-    }
-    
     fn ce_enable(&mut self) {
         self.ce.set_high();
     }
