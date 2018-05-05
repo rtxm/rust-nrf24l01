@@ -68,6 +68,44 @@ macro_rules! impl_buffered_register {
     )
 }
 
+macro_rules! def_pipes_accessors {
+    ($name: ident, $default: expr, $getter: ident, $setter: ident) => (
+        impl $name {
+            #[inline]
+            pub fn $getter(&self, pipe_no: usize) -> bool {
+                let mask = 1 << pipe_no;
+                self.0 & mask == mask
+            }
+
+            #[inline]
+            pub fn $setter(&mut self, pipe_no: usize, enable: bool) {
+                let mask = 1 << pipe_no;
+                if enable {
+                    self.0 |= mask;
+                } else {
+                    self.0 &= !mask;
+                }
+            }
+
+            pub fn from_bools<B: Iterator<Item=bool>>(bools: B) -> Self {
+                let mut register = $name($default);
+                for (i, b) in bools.take(PIPES_COUNT).enumerate() {
+                    register.$setter(i, b);
+                }
+                register
+            }
+
+            pub fn to_bools(&self) -> [bool; PIPES_COUNT] {
+                let mut bools = [true; PIPES_COUNT];
+                for (i, b) in bools.iter_mut().enumerate() {
+                    *b = self.$getter(i);
+                }
+                bools
+            }
+        }
+    )
+}
+
 bitfield! {
     pub struct Config(u8);
     impl Debug;
@@ -96,38 +134,7 @@ impl_register!(Config, 0x00);
 /// Enable Auto Acknowledgment
 pub struct EnAa(pub u8);
 impl_register!(EnAa, 0x01);
-
-impl EnAa {
-    pub fn enaa_p(&self, pipe_no: usize) -> bool {
-        let mask = 1 << pipe_no;
-        self.0 & mask == mask
-    }
-
-    pub fn set_enaa_p(&mut self, pipe_no: usize, enable: bool) {
-        let mask = 1 << pipe_no;
-        if enable {
-            self.0 |= mask;
-        } else {
-            self.0 &= !mask;
-        }
-    }
-
-    pub fn from_bools(bools: &[bool; 6]) -> Self {
-        let mut register = EnAa(0b0011_1111);
-        for (i, b) in bools.iter().enumerate() {
-            register.set_enaa_p(i, *b);
-        }
-        register
-    }
-    
-    pub fn to_bools(&self) -> [bool; 6] {
-        let mut bools = [true; 6];
-        for (i, b) in bools.iter_mut().enumerate() {
-            *b = self.enaa_p(i);
-        }
-        bools
-    }
-}
+def_pipes_accessors!(EnAa, 0b0011_1111, enaa_p, set_enaa_p);
 
 #[derive(Debug)]
 pub struct EnRxaddr(u8);
@@ -254,3 +261,7 @@ bitfield! {
 }
 impl_register!(FifoStatus, 0x17);
 
+/// Enable Dynamic Payload length
+pub struct Dynpd(pub u8);
+impl_register!(Dynpd, 0x1C);
+def_pipes_accessors!(Dynpd, 0, dpl_p, set_dpl_p);

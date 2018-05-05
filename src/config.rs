@@ -1,5 +1,5 @@
 use command::{FlushRx, FlushTx, Nop};
-use registers::{RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw};
+use registers::{RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw, Dynpd};
 use device::Device;
 use PIPES_COUNT;
 
@@ -139,5 +139,26 @@ pub trait Configuration {
             status.tx_ds(),
             status.max_rt()
         ))
+    }
+
+    /// ## `bools`
+    /// * `None`: Dynamic payload length
+    /// * `Some(len)`: Static payload length `len`
+    fn set_pipes_rx_lengths(
+        &mut self,
+        lengths: &[Option<u8>; PIPES_COUNT]
+    ) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+        // Enable dynamic payload lengths
+        let dynpd = Dynpd::from_bools(
+            lengths
+                .iter()
+                .map(|length| length.is_none())
+        );
+        self.device()
+            .write_register(dynpd)?;
+
+        // TODO: set RX_PW_P*
+
+        Ok(())
     }
 }
