@@ -32,13 +32,19 @@ impl<D: Device> RxMode<D> {
     pub fn can_read(&mut self) -> Result<Option<u8>, D::Error> {
         self.device.read_register::<FifoStatus>().map(
             |(status, fifo_status)| {
-                if fifo_status.rx_empty() {
+                if ! fifo_status.rx_empty() {
                     Some(status.rx_p_no())
                 } else {
                     None
                 }
             },
         )
+    }
+
+    /// Is the RX queue empty?
+    pub fn is_empty(&mut self) -> Result<bool, D::Error> {
+        self.device.read_register::<FifoStatus>()
+            .map(|(_, fifo_status)| fifo_status.rx_empty())
     }
 
     /// Is the RX queue full?
@@ -49,6 +55,7 @@ impl<D: Device> RxMode<D> {
     }
 
     pub fn read(&mut self) -> Result<Payload, D::Error> {
+        // TODO: disabled needed?
         self.device.with_ce_disabled(|device| {
             let (_, payload_width) =
                 device.send_command(&ReadRxPayloadWidth)?;
