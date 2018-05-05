@@ -265,3 +265,17 @@ impl_register!(FifoStatus, 0x17);
 pub struct Dynpd(pub u8);
 impl_register!(Dynpd, 0x1C);
 def_pipes_accessors!(Dynpd, 0, dpl_p, set_dpl_p);
+
+bitfield! {
+    /// Enable features
+    pub struct Feature(u8);
+    impl Debug;
+
+    /// Enables Dynamic Payload Length
+    pub en_dpl, set_en_dpl: 2;
+    /// Enables Payload with ACK
+    pub en_ack_pay, set_en_ack_pay: 1;
+    /// Enables the W_TX_PAYLOAD_NOACK command
+    pub en_dyn_ack, set_en_dyn_ack: 0;
+}
+impl_register!(Feature, 0x1D);

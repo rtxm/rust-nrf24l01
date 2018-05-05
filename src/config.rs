@@ -1,5 +1,5 @@
 use command::{FlushRx, FlushTx, Nop};
-use registers::{RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw, Dynpd};
+use registers::{RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
 use device::Device;
 use PIPES_COUNT;
 
