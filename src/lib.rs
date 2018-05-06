@@ -1,26 +1,18 @@
 // Copyright 2018, Astro <astro@spaceboyz.net>
 //
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/license/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option.  This file may not be copied, modified, or distributed
-// except according to those terms.
+// Licensed under the Apache License, Version 2.0 <LICENSE>. This file
+// may not be copied, modified, or distributed except according to
+// those terms.
 
 #![no_std]
 extern crate embedded_hal;
 #[macro_use]
 extern crate bitfield;
-// TODO:
-extern crate cortex_m_semihosting;
 
 use core::fmt;
 use core::fmt::Debug;
 use embedded_hal::digital::OutputPin;
-use embedded_hal::spi;
 use embedded_hal::blocking::spi::Transfer as SpiTransfer;
-
-use core::fmt::Write;
-use cortex_m_semihosting::hio;
 
 mod config;
 pub use config::{Configuration, CrcMode, DataRate};
@@ -29,7 +21,7 @@ pub mod setup;
 mod registers;
 use registers::{Register, Config, Status, SetupAw};
 mod command;
-use command::{Command, ReadRegister, WriteRegister, Nop};
+use command::{Command, ReadRegister, WriteRegister};
 mod payload;
 pub use payload::Payload;
 mod error;
@@ -114,21 +106,11 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         // Serialize the command
         command.encode(buf);
 
-        // let mut stdout = hio::hstdout().unwrap();
-        // for b in buf.iter() {
-        //     write!(stdout, "{:02X} ", b);
-        // }
-        // write!(stdout, ">>");
-
         // SPI transaction
         self.csn.set_low();
         self.spi.transfer(buf)?;
         self.csn.set_high();
 
-        // for b in buf.iter() {
-        //     write!(stdout, " {:02X}", b);
-        // }
-        // write!(stdout, "\n");
         // Parse response
         let status = Status(buf[0]);
         let response = C::decode_response(buf);

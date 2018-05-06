@@ -12,5 +12,3 @@ homepage = "https://github.com/astro/embedded-nrf24l01"
 [dependencies]
 embedded-hal = "0.1.2"
 bitfield = "0.12.2"
-# TODO:
-cortex-m-semihosting = "*"

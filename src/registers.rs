@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use PIPES_COUNT;
 
 pub trait Register {

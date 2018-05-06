@@ -1,5 +1,3 @@
-use embedded_hal::digital::OutputPin;
-
 use command::Command;
 use registers::{Register, Config, Status};
 

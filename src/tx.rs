@@ -3,7 +3,6 @@ use command::WriteTxPayload;
 use registers::{Status, FifoStatus, ObserveTx};
 use device::Device;
 use standby::StandbyMode;
-use payload::Payload;
 use config::Configuration;
 
 /// Represents **TX Mode** and the associated **TX Settling** and
@@ -37,7 +36,7 @@ impl<D: Device> TxMode<D> {
 
     /// Is TX FIFO empty?
     pub fn is_empty(&mut self) -> Result<bool, D::Error> {
-        let (status, fifo_status) =
+        let (_, fifo_status) =
             self.device.read_register::<FifoStatus>()?;
         Ok(fifo_status.tx_empty())
     }

@@ -108,7 +108,7 @@ impl<'a> Command for WriteTxPayload<'a> {
     }
 
     type Response = ();
-    fn decode_response(data: &[u8]) -> Self::Response {}
+    fn decode_response(_: &[u8]) -> Self::Response {}
 }
 
 pub struct ReadRxPayloadWidth;
