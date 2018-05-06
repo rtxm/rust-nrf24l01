@@ -1,5 +1,5 @@
 use command::{FlushRx, FlushTx, Nop};
-use registers::{RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
+use registers::{Status, RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
 use device::Device;
 use PIPES_COUNT;
 
@@ -139,6 +139,16 @@ pub trait Configuration {
             status.tx_ds(),
             status.max_rt()
         ))
+    }
+
+    fn clear_interrupts(&mut self) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+        let mut clear = Status(0);
+        clear.set_rx_dr(true);
+        clear.set_tx_ds(true);
+        clear.set_max_rt(true);
+        self.device()
+            .write_register(clear)?;
+        Ok(())
     }
 
     /// ## `bools`

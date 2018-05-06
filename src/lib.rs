@@ -40,7 +40,6 @@ pub const PIPES_COUNT: usize = 6;
 
 
 /// Driver for the nRF24L01+
-// TODO: interrupt resets
 pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
     ce: CE,
     csn: CSN,
