@@ -1,6 +1,6 @@
 use core::fmt;
 use command::WriteTxPayload;
-use registers::{FifoStatus, ObserveTx};
+use registers::{Status, FifoStatus, ObserveTx};
 use device::Device;
 use standby::StandbyMode;
 use payload::Payload;
@@ -64,10 +64,22 @@ impl<D: Device> TxMode<D> {
 
     /// Wait until FX FIFO is empty
     pub fn wait_empty(&mut self) -> Result<(), D::Error> {
-        if ! self.is_empty()? {
-            self.device.ce_enable();
-            while ! self.is_empty()? {}
+        let mut empty = false;
+        while ! empty {
+            let (status, fifo_status) =
+                self.device.read_register::<FifoStatus>()?;
+            empty = fifo_status.tx_empty();
+            if ! empty {
+                self.device.ce_enable();
+            }
+
+            if status.max_rt() {
+                let mut clear = Status(0);
+                clear.set_max_rt(true);
+                self.device.write_register(clear)?;
+            }
         }
+        // Can save power now
         self.device.ce_disable();
 
         Ok(())
