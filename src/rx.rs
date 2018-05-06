@@ -55,14 +55,11 @@ impl<D: Device> RxMode<D> {
     }
 
     pub fn read(&mut self) -> Result<Payload, D::Error> {
-        // TODO: disabled needed?
-        self.device.with_ce_disabled(|device| {
-            let (_, payload_width) =
-                device.send_command(&ReadRxPayloadWidth)?;
-            let (_, payload) =
-                device.send_command(&ReadRxPayload::new(payload_width as usize))?;
-            Ok(payload)
-        })
+        let (_, payload_width) =
+            self.device.send_command(&ReadRxPayloadWidth)?;
+        let (_, payload) =
+            self.device.send_command(&ReadRxPayload::new(payload_width as usize))?;
+        Ok(payload)
     }
 }
 
