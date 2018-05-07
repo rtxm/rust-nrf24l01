@@ -1,11 +1,11 @@
 [package]
-name = "nrf24l01-embedded"
+name = "embedded-nrf24l01"
 version = "0.2.0"
-authors = ["Romuald Texier-Marcadé <romuadtm@gmail.com>", "Astro <astro@spaceboyz.net>"]
+authors = ["Astro <astro@spaceboyz.net>"]
 description = "A driver for NRF24L01(+) transceivers on embedded-hal platforms."
-license = "MIT/Apache-2.0"
-categories = ["embedded", "hardware-support"]
-keywords = ["driver", "wireless", "radio", "transceiver", "nrf"]
+license = "Apache-2.0"
+categories = ["embedded", "no-std", "hardware-support", "radio"]
+keywords = ["driver", "wireless", "radio", "nrf", "nrf24l01"]
 repository = "https://github.com/astro/embedded-nrf24l01"
 homepage = "https://github.com/astro/embedded-nrf24l01"
 
