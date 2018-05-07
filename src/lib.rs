@@ -37,6 +37,8 @@ mod tx;
 pub use tx::TxMode;
 
 pub const PIPES_COUNT: usize = 6;
+pub const MIN_ADDR_BYTES: usize = 3;
+pub const MAX_ADDR_BYTES: usize = 5;
 
 
 /// Driver for the nRF24L01+

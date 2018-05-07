@@ -1,12 +1,16 @@
 #![allow(unused)]
 
-use PIPES_COUNT;
+use {PIPES_COUNT, MIN_ADDR_BYTES, MAX_ADDR_BYTES};
 
 pub trait Register {
     /// Address in the register map
     fn addr() -> u8;
 
-    fn data_bytes() -> usize;
+    fn read_len() -> usize;
+    fn write_len(&self) -> usize {
+        Self::read_len()
+    }
+
     fn encode(&self, &mut [u8]);
     fn decode(&[u8]) -> Self;
 }
@@ -19,7 +23,7 @@ macro_rules! impl_register {
                 $addr
             }
 
-            fn data_bytes() -> usize {
+            fn read_len() -> usize {
                 1
             }
 
@@ -46,25 +50,46 @@ macro_rules! impl_register {
     )
 }
 
-macro_rules! impl_buffered_register {
-    ($name: ident, $addr: expr, $size: expr) => (
+
+macro_rules! def_address_register {
+    ($name: ident, $addr: expr) => (
+        pub struct $name {
+            addr: [u8; MAX_ADDR_BYTES],
+            len: u8,
+        }
+
+        impl $name {
+            pub fn new(buf: &[u8]) -> Self {
+                Self::decode(buf)
+            }
+        }
+
         impl Register for $name {
             fn addr() -> u8 {
                 $addr
             }
 
-            fn data_bytes() -> usize {
-                $size
+            fn read_len() -> usize {
+                MAX_ADDR_BYTES
+            }
+
+            fn write_len(&self) -> usize {
+                self.len.into()
             }
 
             fn encode(&self, buf: &mut [u8]) {
-                buf.copy_from_slice(&self.0);
+                let len = self.len.into();
+                buf.copy_from_slice(&self.addr[0..len]);
             }
 
             fn decode(buf: &[u8]) -> Self {
-                let mut addr = [0; $size];
-                addr.copy_from_slice(buf);
-                $name(addr)
+                let len = buf.len();
+                assert!(len >= MIN_ADDR_BYTES);
+                assert!(len <= MAX_ADDR_BYTES);
+
+                let mut addr = [0; MAX_ADDR_BYTES];
+                addr[0..len].copy_from_slice(buf);
+                $name { addr, len: len as u8 }
             }
         }
     )
@@ -239,11 +264,9 @@ bitfield! {
 }
 impl_register!(ObserveTx, 0x08);
 
-pub struct RxAddrP0(pub [u8; 5]);
-impl_buffered_register!(RxAddrP0, 0x0A, 5);
-
-pub struct TxAddr(pub [u8; 5]);
-impl_buffered_register!(TxAddr, 0x10, 5);
+def_address_register!(RxAddrP0, 0x0A);
+def_address_register!(RxAddrP1, 0x0B);
+def_address_register!(TxAddr, 0x10);
 
 macro_rules! def_rx_pw {
     ($name: ident, $addr: expr) => (

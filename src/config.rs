@@ -1,5 +1,5 @@
 use command::{FlushRx, FlushTx, Nop};
-use registers::{Status, RfCh, RfSetup, TxAddr, RxAddrP0, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
+use registers::{Status, RfCh, RfSetup, TxAddr, RxAddrP0, RxAddrP1, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
 use device::Device;
 use PIPES_COUNT;
 
@@ -88,16 +88,24 @@ pub trait Configuration {
         })
     }
 
-    fn set_rx_addr(&mut self, pipe_no: usize, rx_addr: [u8; 5]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
-        // TODO: impl p1
-        let rx_addr_reg = RxAddrP0(rx_addr);
-        self.device().write_register(rx_addr_reg)?;
+    fn set_rx_addr(&mut self, pipe_no: usize, addr: &[u8]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+        match pipe_no {
+            0 => {
+                let register = RxAddrP0::new(addr);
+                self.device().write_register(register)?;
+            }
+            1 => {
+                let register = RxAddrP1::new(addr);
+                self.device().write_register(register)?;
+            }
+            _ => panic!("No such pipe {}", pipe_no)
+        }
         Ok(())
     }
 
-    fn set_tx_addr(&mut self, tx_addr: [u8; 5]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
-        let tx_addr_reg = TxAddr(tx_addr);
-        self.device().write_register(tx_addr_reg)?;
+    fn set_tx_addr(&mut self, addr: &[u8]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+        let register = TxAddr::new(addr);
+        self.device().write_register(register)?;
         Ok(())
     }
 

@@ -25,7 +25,7 @@ impl<R: Register> ReadRegister<R> {
 
 impl<R: Register> Command for ReadRegister<R> {
     fn len(&self) -> usize {
-        1 + R::data_bytes()
+        1 + R::read_len()
     }
 
     fn encode(&self, buf: &mut [u8]) {
@@ -50,7 +50,7 @@ impl<R: Register> WriteRegister<R> {
 
 impl<R: Register> Command for WriteRegister<R> {
     fn len(&self) -> usize {
-        1 + R::data_bytes()
+        1 + self.register.write_len()
     }
 
     fn encode(&self, buf: &mut [u8]) {
