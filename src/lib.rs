@@ -107,8 +107,11 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
 
         // SPI transaction
         self.csn.set_low();
-        self.spi.transfer(buf)?;
+        let transfer_result = self.spi.transfer(buf)
+            .map(|_| {});
         self.csn.set_high();
+        // Propagate Err only after csn.set_high():
+        transfer_result?;
 
         // Parse response
         let status = Status(buf[0]);
