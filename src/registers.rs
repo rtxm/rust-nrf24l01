@@ -15,6 +15,20 @@ pub trait Register {
     fn decode(&[u8]) -> Self;
 }
 
+macro_rules! def_simple {
+    ($name: ident) => (
+        pub struct $name(pub u8);
+
+        impl $name {
+            pub fn new(data: &[u8]) -> Self {
+                assert_eq!(data.len(), 1);
+
+                $name(data[0])
+            }
+        }
+    )
+}
+
 /// Common for all registers with 1 bytes of data
 macro_rules! impl_register {
     ($name: ident, $addr: expr) => (
@@ -252,6 +266,15 @@ impl_register!(ObserveTx, 0x08);
 
 def_address_register!(RxAddrP0, 0x0A);
 def_address_register!(RxAddrP1, 0x0B);
+def_simple!(RxAddrP2);
+impl_register!(RxAddrP2, 0x0C);
+def_simple!(RxAddrP3);
+impl_register!(RxAddrP3, 0x0D);
+def_simple!(RxAddrP4);
+impl_register!(RxAddrP4, 0x0E);
+def_simple!(RxAddrP5);
+impl_register!(RxAddrP5, 0x0F);
+
 def_address_register!(TxAddr, 0x10);
 
 macro_rules! def_rx_pw {

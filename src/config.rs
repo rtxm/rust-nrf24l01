@@ -95,17 +95,26 @@ pub trait Configuration {
     }
 
     fn set_rx_addr(&mut self, pipe_no: usize, addr: &[u8]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
-        match pipe_no {
-            0 => {
-                let register = RxAddrP0::new(addr);
-                self.device().write_register(register)?;
-            }
-            1 => {
-                let register = RxAddrP1::new(addr);
-                self.device().write_register(register)?;
-            }
-            _ => panic!("No such pipe {}", pipe_no)
+        macro_rules! w {
+            ( $($no: expr, $name: ident);+ ) => (
+                match pipe_no {
+                    $(
+                        $no => {
+                            use registers::$name;
+                            let register = $name::new(addr);
+                            self.device().write_register(register)?;
+                        }
+                    )+
+                        _ => panic!("No such pipe {}", pipe_no)
+                }
+            )
         }
+        w!(0, RxAddrP0;
+           1, RxAddrP1;
+           2, RxAddrP2;
+           3, RxAddrP3;
+           4, RxAddrP4;
+           5, RxAddrP5);
         Ok(())
     }
 
