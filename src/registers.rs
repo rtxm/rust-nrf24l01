@@ -159,30 +159,16 @@ bitfield! {
 impl_register!(Config, 0x00);
 
 /// Enable Auto Acknowledgment
+#[derive(Debug)]
 pub struct EnAa(pub u8);
 impl_register!(EnAa, 0x01);
 def_pipes_accessors!(EnAa, 0b0011_1111, enaa_p, set_enaa_p);
 
+/// Enabled RX Addresses
 #[derive(Debug)]
 pub struct EnRxaddr(u8);
 impl_register!(EnRxaddr, 0x02);
-
-/// Enabled RX Addresses
-impl EnRxaddr {
-    pub fn erx_p(&self, pipe_no: u8) -> bool {
-        let mask = 1 << pipe_no;
-        self.0 & mask == mask
-    }
-
-    pub fn set_erx_p(&mut self, pipe_no: u8, enable: bool) {
-        let mask = 1 << pipe_no;
-        if enable {
-            self.0 |= mask;
-        } else {
-            self.0 &= !mask;
-        }
-    }
-}
+def_pipes_accessors!(EnRxaddr, 0, erx_p, set_erx_p);
 
 bitfield! {
     pub struct SetupAw(u8);

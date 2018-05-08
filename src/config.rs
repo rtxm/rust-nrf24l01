@@ -1,5 +1,5 @@
 use command::{FlushRx, FlushTx, Nop};
-use registers::{Status, RfCh, RfSetup, TxAddr, RxAddrP0, RxAddrP1, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
+use registers::{Status, RfCh, RfSetup, TxAddr, EnRxaddr, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
 use device::Device;
 use PIPES_COUNT;
 
@@ -86,6 +86,12 @@ pub trait Configuration {
                 },
             }
         })
+    }
+
+    fn set_pipes_rx_enable(&mut self, bools: &[bool; PIPES_COUNT]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+        self.device()
+            .write_register(EnRxaddr::from_bools(bools))?;
+        Ok(())
     }
 
     fn set_rx_addr(&mut self, pipe_no: usize, addr: &[u8]) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
