@@ -11,6 +11,10 @@
 
 * Auto-ack support
 
+## Reference datasheets
+
+* [nRF24L01+](https://www.sparkfun.com/datasheets/Components/SMD/nRF24L01Pluss_Preliminary_Product_Specification_v1_0.pdf)
+
 ## Usage
 
 ### Parameters
