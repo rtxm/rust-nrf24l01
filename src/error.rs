@@ -1,7 +1,11 @@
 use core::fmt::Debug;
 
+/// Wraps an SPI error
+///
+/// TODO: eliminate this?
 #[derive(Debug)]
 pub enum Error<SPIE: Debug> {
+    /// Wrap an SPI error
     SpiError(SPIE),
 }
 

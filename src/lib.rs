@@ -4,6 +4,11 @@
 // may not be copied, modified, or distributed except according to
 // those terms.
 
+//! nRF24L01+ driver for use with [embedded-hal](https://crates.io/crates/embedded-hal)
+
+#![warn(missing_docs, unused)]
+
+
 #![no_std]
 extern crate embedded_hal;
 #[macro_use]
@@ -36,11 +41,22 @@ pub use crate::rx::RxMode;
 mod tx;
 pub use crate::tx::TxMode;
 
+/// Number of RX pipes with configurable addresses
 pub const PIPES_COUNT: usize = 6;
+/// Minimum address length
 pub const MIN_ADDR_BYTES: usize = 3;
+/// Maximum address length
 pub const MAX_ADDR_BYTES: usize = 5;
 
 /// Driver for the nRF24L01+
+///
+/// Never deal with this directly. Instead, you store one of the following types:
+///
+/// * [`StandbyMode<D>`](struct.StandbyMode.html)
+/// * [`RxMode<D>`](struct.RxMode.html)
+/// * [`TxMode<D>`](struct.TxMode.html)
+///
+/// where `D: `[`Device`](trait.Device.html)
 pub struct NRF24L01<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTransfer<u8>> {
     ce: CE,
     csn: CSN,
@@ -82,6 +98,7 @@ impl<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTran
         StandbyMode::power_up(device).map_err(|(_, e)| e)
     }
 
+    /// Reads and validates content of the `SETUP_AW` register.
     pub fn is_connected(&mut self) -> Result<bool, Error<SPIE>> {
         let (_, setup_aw) = self.read_register::<SetupAw>()?;
         let valid = setup_aw.aw() >= 3 && setup_aw.aw() <= 5;

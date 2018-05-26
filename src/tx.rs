@@ -8,8 +8,14 @@ use core::fmt;
 /// Represents **TX Mode** and the associated **TX Settling** and
 /// **Standby-II** states
 ///
-/// **" It is important to never keep the nRF24L01 in TX mode for more
-/// than 4ms at a time."**
+/// # Timing
+///
+/// The datasheet states the follwing:
+///
+/// > It is important to never keep the nRF24L01 in TX mode for more than 4ms at a time.
+///
+/// No effects have been observed when exceeding this limit. The
+/// warranty could get void.
 pub struct TxMode<D: Device> {
     device: D,
 }
@@ -127,6 +133,7 @@ impl<D: Device> TxMode<D> {
         Ok(())
     }
 
+    /// Read the `OBSERVE_TX` register
     pub fn observe(&mut self) -> Result<ObserveTx, D::Error> {
         let (_, observe_tx) = self.device.read_register()?;
         Ok(observe_tx)

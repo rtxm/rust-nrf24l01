@@ -6,6 +6,7 @@ use crate::registers::{FifoStatus, Status, CD};
 use crate::standby::StandbyMode;
 use core::fmt;
 
+/// Represents **RX Mode**
 pub struct RxMode<D: Device> {
     device: D,
 }
@@ -80,6 +81,7 @@ impl<D: Device> RxMode<D> {
             .map(|(_, fifo_status)| fifo_status.rx_full())
     }
 
+    /// Read the next received packet
     pub fn read(&mut self) -> Result<Payload, D::Error> {
         let (_, payload_width) = self.device.send_command(&ReadRxPayloadWidth)?;
         let (_, payload) = self

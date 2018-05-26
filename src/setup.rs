@@ -1,6 +1,8 @@
+//! Setup parameters for SPI
+
 use embedded_hal::spi;
 
-/// Setup parameters
+/// SPI setup parameters
 pub fn spi_mode() -> spi::Mode {
     spi::Mode {
         polarity: spi::Polarity::IdleLow,
@@ -8,6 +10,9 @@ pub fn spi_mode() -> spi::Mode {
     }
 }
 
+/// Recommended SPI clock speed
+///
+/// Use as rough guidance.
 pub fn clock_mhz() -> u32 {
     8
 }

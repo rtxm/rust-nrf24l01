@@ -1,11 +1,16 @@
 use core::ops::Deref;
 
+/// Represents a received packet. Stores 32 bytes and the actual length.
+///
+/// Use [`as_ref()`](#method.as_ref) or [`Deref`](#impl-Deref) to
+/// obtain a slice of the content.
 pub struct Payload {
     data: [u8; 32],
     len: usize,
 }
 
 impl Payload {
+    /// Copy a slice
     pub fn new(source: &[u8]) -> Self {
         let mut data = [0; 32];
         let len = source.len().min(data.len());
@@ -13,6 +18,7 @@ impl Payload {
         Payload { data, len }
     }
 
+    /// Read length
     pub fn len(&self) -> usize {
         self.len
     }

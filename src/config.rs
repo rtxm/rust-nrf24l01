@@ -8,8 +8,11 @@ use crate::PIPES_COUNT;
 /// Supported air data rates.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum DataRate {
+    /// 250 Kbps
     R250Kbps,
+    /// 1 Mbps
     R1Mbps,
+    /// 2 Mbps
     R2Mbps,
 }
 
@@ -19,10 +22,14 @@ impl Default for DataRate {
     }
 }
 
+/// Supported CRC modes
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum CrcMode {
+    /// Disable all CRC generation/checking
     Disabled,
+    /// One byte checksum
     OneByte,
+    /// Two bytes checksum
     TwoBytes,
 }
 
@@ -38,15 +45,24 @@ impl CrcMode {
     }
 }
 
+/// Configuration methods
+///
+/// These seem to work in all modes
 pub trait Configuration {
+    /// Underlying [`trait Device`](trait.Device.html)
     type Inner: Device;
+    /// Get a mutable reference to the underlying device
     fn device(&mut self) -> &mut Self::Inner;
 
+    /// Flush RX queue
+    ///
+    /// Discards all received packets that have not yet been [read](struct.RxMode.html#method.read) from the RX FIFO
     fn flush_rx(&mut self) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
         self.device().send_command(&FlushRx)?;
         Ok(())
     }
 
+    /// Flush TX queue, discarding any unsent packets
     fn flush_tx(&mut self) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
         self.device().send_command(&FlushTx)?;
         Ok(())
@@ -125,6 +141,7 @@ pub trait Configuration {
         })
     }
 
+    /// Configure which RX pipes to enable
     fn set_pipes_rx_enable(
         &mut self,
         bools: &[bool; PIPES_COUNT],
@@ -133,6 +150,7 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Set address `addr` of pipe number `pipe_no`
     fn set_rx_addr(
         &mut self,
         pipe_no: usize,
@@ -161,6 +179,7 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Set address of the TX pipe
     fn set_tx_addr(
         &mut self,
         addr: &[u8],
@@ -170,6 +189,9 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Configure auto-retransmit
+    ///
+    /// To disable, call as `set_auto_retransmit(0, 0)`.
     fn set_auto_retransmit(
         &mut self,
         delay: u8,
@@ -182,6 +204,7 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Obtain auto-acknowledgment configuration for all pipes
     fn get_auto_ack(
         &mut self,
     ) -> Result<[bool; PIPES_COUNT], <<Self as Configuration>::Inner as Device>::Error> {
@@ -190,6 +213,9 @@ pub trait Configuration {
         Ok(register.to_bools())
     }
 
+    /// Configure auto-acknowledgment for all RX pipes
+    ///
+    /// TODO: handle switching tx/rx modes when auto-retransmit is enabled
     fn set_auto_ack(
         &mut self,
         bools: &[bool; PIPES_COUNT],
@@ -201,6 +227,7 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Get address width configuration
     fn get_address_width(
         &mut self,
     ) -> Result<u8, <<Self as Configuration>::Inner as Device>::Error> {
@@ -208,6 +235,10 @@ pub trait Configuration {
         Ok(2 + register.aw())
     }
 
+    /// Obtain interrupt pending status as `(RX_DR, TX_DR, MAX_RT)`
+    /// where `RX_DR` indicates new data in the RX FIFO, `TX_DR`
+    /// indicates that a packet has been sent, and `MAX_RT` indicates
+    /// maximum retransmissions without auto-ack.
     fn get_interrupts(
         &mut self,
     ) -> Result<(bool, bool, bool), <<Self as Configuration>::Inner as Device>::Error> {
@@ -215,6 +246,7 @@ pub trait Configuration {
         Ok((status.rx_dr(), status.tx_ds(), status.max_rt()))
     }
 
+    /// Clear all interrupts
     fn clear_interrupts(
         &mut self,
     ) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {

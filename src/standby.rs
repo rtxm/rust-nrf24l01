@@ -19,6 +19,9 @@ impl<D: Device> fmt::Debug for StandbyMode<D> {
 }
 
 impl<D: Device> StandbyMode<D> {
+    /// Constructor
+    ///
+    /// Puts the `device` into standy mode
     pub fn power_up(mut device: D) -> Result<Self, (D, D::Error)> {
         match device.update_config(|config| config.set_pwr_up(true)) {
             Ok(()) => Ok(StandbyMode { device }),
