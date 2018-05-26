@@ -90,14 +90,14 @@ pub trait Configuration {
     /// power: `0`: -18 dBm, `3`: 0 dBm
     fn set_rf(
         &mut self,
-        rate: DataRate,
+        rate: &DataRate,
         power: u8,
     ) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
         assert!(power < 0b100);
         let mut register = RfSetup(0);
         register.set_rf_pwr(power);
 
-        let (dr_low, dr_high) = match rate {
+        let (dr_low, dr_high) = match *rate {
             DataRate::R250Kbps => (true, false),
             DataRate::R1Mbps => (false, false),
             DataRate::R2Mbps => (false, true),
