@@ -1,7 +1,7 @@
 use crate::command::{FlushRx, FlushTx, Nop};
 use crate::device::Device;
 use crate::registers::{
-    Dynpd, EnAa, EnRxaddr, Feature, RfCh, RfSetup, SetupAw, SetupRetr, Status, TxAddr,
+    Config, Dynpd, EnAa, EnRxaddr, Feature, RfCh, RfSetup, SetupAw, SetupRetr, Status, TxAddr,
 };
 use crate::PIPES_COUNT;
 
@@ -21,8 +21,21 @@ impl Default for DataRate {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum CrcMode {
+    Disabled,
     OneByte,
     TwoBytes,
+}
+
+impl CrcMode {
+    fn set_config(&self, config: &mut Config) {
+        let (en_crc, crco) = match *self {
+            CrcMode::Disabled => (false, false),
+            CrcMode::OneByte => (true, false),
+            CrcMode::TwoBytes => (true, true),
+        };
+        config.set_en_crc(en_crc);
+        config.set_crco(crco);
+    }
 }
 
 pub trait Configuration {
@@ -80,6 +93,7 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Set CRC mode
     fn set_crc(
         &mut self,
         mode: Option<CrcMode>,
@@ -87,6 +101,7 @@ pub trait Configuration {
         self.device().update_config(|config| match mode {
             None => config.set_en_crc(false),
             Some(mode) => match mode {
+                CrcMode::Disabled => config.set_en_crc(false),
                 CrcMode::OneByte => config.set_crco(false),
                 CrcMode::TwoBytes => config.set_crco(true),
             },
