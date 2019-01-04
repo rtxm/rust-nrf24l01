@@ -1,6 +1,6 @@
-use core::marker::PhantomData;
-use crate::registers::Register;
 pub use crate::payload::Payload;
+use crate::registers::Register;
+use core::marker::PhantomData;
 
 pub trait Command {
     fn len(&self) -> usize;
@@ -9,7 +9,6 @@ pub trait Command {
     type Response;
     fn decode_response(data: &[u8]) -> Self::Response;
 }
-
 
 pub struct ReadRegister<R: Register> {
     register: PhantomData<R>,
@@ -63,7 +62,7 @@ impl<R: Register> Command for WriteRegister<R> {
 }
 
 pub struct ReadRxPayload {
-    payload_width: usize
+    payload_width: usize,
 }
 
 impl ReadRxPayload {
@@ -88,7 +87,7 @@ impl Command for ReadRxPayload {
 }
 
 pub struct WriteTxPayload<'a> {
-    data: &'a [u8]
+    data: &'a [u8],
 }
 
 impl<'a> WriteTxPayload<'a> {

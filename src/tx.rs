@@ -1,9 +1,9 @@
-use core::fmt;
 use crate::command::WriteTxPayload;
-use crate::registers::{Status, FifoStatus, ObserveTx};
-use crate::device::Device;
-use crate::standby::StandbyMode;
 use crate::config::Configuration;
+use crate::device::Device;
+use crate::registers::{FifoStatus, ObserveTx, Status};
+use crate::standby::StandbyMode;
+use core::fmt;
 
 /// Represents **TX Mode** and the associated **TX Settling** and
 /// **Standby-II** states
@@ -36,15 +36,13 @@ impl<D: Device> TxMode<D> {
 
     /// Is TX FIFO empty?
     pub fn is_empty(&mut self) -> Result<bool, D::Error> {
-        let (_, fifo_status) =
-            self.device.read_register::<FifoStatus>()?;
+        let (_, fifo_status) = self.device.read_register::<FifoStatus>()?;
         Ok(fifo_status.tx_empty())
     }
 
     /// Is TX FIFO full?
     pub fn is_full(&mut self) -> Result<bool, D::Error> {
-        let (_, fifo_status) =
-            self.device.read_register::<FifoStatus>()?;
+        let (_, fifo_status) = self.device.read_register::<FifoStatus>()?;
         Ok(fifo_status.tx_full())
     }
 
@@ -64,11 +62,10 @@ impl<D: Device> TxMode<D> {
     /// Wait until FX FIFO is empty
     pub fn wait_empty(&mut self) -> Result<(), D::Error> {
         let mut empty = false;
-        while ! empty {
-            let (status, fifo_status) =
-                self.device.read_register::<FifoStatus>()?;
+        while !empty {
+            let (status, fifo_status) = self.device.read_register::<FifoStatus>()?;
             empty = fifo_status.tx_empty();
-            if ! empty {
+            if !empty {
                 self.device.ce_enable();
             }
 
@@ -88,8 +85,7 @@ impl<D: Device> TxMode<D> {
     }
 
     pub fn observe(&mut self) -> Result<ObserveTx, D::Error> {
-        let (_, observe_tx) =
-            self.device.read_register()?;
+        let (_, observe_tx) = self.device.read_register()?;
         Ok(observe_tx)
     }
 }

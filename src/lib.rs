@@ -11,15 +11,15 @@ extern crate bitfield;
 
 use core::fmt;
 use core::fmt::Debug;
-use embedded_hal::digital::OutputPin;
 use embedded_hal::blocking::spi::Transfer as SpiTransfer;
+use embedded_hal::digital::OutputPin;
 
 mod config;
 pub use crate::config::{Configuration, CrcMode, DataRate};
 pub mod setup;
 
 mod registers;
-use crate::registers::{Register, Config, Status, SetupAw};
+use crate::registers::{Config, Register, SetupAw, Status};
 mod command;
 use crate::command::{Command, ReadRegister, WriteRegister};
 mod payload;
@@ -40,7 +40,6 @@ pub const PIPES_COUNT: usize = 6;
 pub const MIN_ADDR_BYTES: usize = 3;
 pub const MAX_ADDR_BYTES: usize = 5;
 
-
 /// Driver for the nRF24L01+
 pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
     ce: CE,
@@ -49,13 +48,17 @@ pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
     config: Config,
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> fmt::Debug for NRF24L01<CE, CSN, SPI> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> fmt::Debug
+    for NRF24L01<CE, CSN, SPI>
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "NRF24L01")
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> NRF24L01<CE, CSN, SPI> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug>
+    NRF24L01<CE, CSN, SPI>
+{
     /// Construct a new driver instance.
     pub fn new(mut ce: CE, mut csn: CSN, spi: SPI) -> Result<StandbyMode<Self>, Error<SPIE>> {
         ce.set_low();
@@ -67,28 +70,28 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         config.set_mask_tx_ds(true);
         config.set_mask_max_rt(true);
         let mut device = NRF24L01 {
-            ce, csn, spi,
+            ce,
+            csn,
+            spi,
             config,
         };
         assert!(device.is_connected().unwrap());
 
         // TODO: activate features?
-        
-        StandbyMode::power_up(device)
-            .map_err(|(_, e)| e)
+
+        StandbyMode::power_up(device).map_err(|(_, e)| e)
     }
 
     pub fn is_connected(&mut self) -> Result<bool, Error<SPIE>> {
-        let (_, setup_aw) =
-            self.read_register::<SetupAw>()?;
-        let valid =
-            setup_aw.aw() >= 3 &&
-            setup_aw.aw() <= 5;
+        let (_, setup_aw) = self.read_register::<SetupAw>()?;
+        let valid = setup_aw.aw() >= 3 && setup_aw.aw() <= 5;
         Ok(valid)
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debug> Device for NRF24L01<CE, CSN, SPI> {
+impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> Device
+    for NRF24L01<CE, CSN, SPI>
+{
     type Error = Error<SPIE>;
 
     fn ce_enable(&mut self) {
@@ -99,7 +102,10 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
         self.ce.set_low();
     }
 
-    fn send_command<C: Command>(&mut self, command: &C) -> Result<(Status, C::Response), Self::Error> {
+    fn send_command<C: Command>(
+        &mut self,
+        command: &C,
+    ) -> Result<(Status, C::Response), Self::Error> {
         // Allocate storage
         let mut buf_storage = [0; 33];
         let len = command.len();
@@ -109,8 +115,7 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
 
         // SPI transaction
         self.csn.set_low();
-        let transfer_result = self.spi.transfer(buf)
-            .map(|_| {});
+        let transfer_result = self.spi.transfer(buf).map(|_| {});
         self.csn.set_high();
         // Propagate Err only after csn.set_high():
         transfer_result?;
@@ -132,7 +137,8 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error=SPIE>, SPIE: Debu
     }
 
     fn update_config<F, R>(&mut self, f: F) -> Result<R, Self::Error>
-        where F: FnOnce(&mut Config) -> R
+    where
+        F: FnOnce(&mut Config) -> R,
     {
         // Mutate
         let old_config = self.config.clone();
