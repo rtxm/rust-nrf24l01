@@ -1,5 +1,5 @@
-use command::Command;
-use registers::{Register, Config, Status};
+use crate::command::Command;
+use crate::registers::{Register, Config, Status};
 
 /// Trait that hides all the GPIO/SPI type parameters for use by the
 /// operation modes

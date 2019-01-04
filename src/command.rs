@@ -1,13 +1,13 @@
 use core::marker::PhantomData;
-use registers::Register;
-pub use payload::Payload;
+use crate::registers::Register;
+pub use crate::payload::Payload;
 
 pub trait Command {
     fn len(&self) -> usize;
-    fn encode(&self, &mut [u8]);
+    fn encode(&self, data: &mut [u8]);
 
     type Response;
-    fn decode_response(&[u8]) -> Self::Response;
+    fn decode_response(data: &[u8]) -> Self::Response;
 }
 
 

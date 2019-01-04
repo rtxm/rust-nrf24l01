@@ -8,6 +8,7 @@ categories = ["embedded", "no-std", "hardware-support", "radio"]
 keywords = ["driver", "wireless", "radio", "nrf", "nrf24l01"]
 repository = "https://github.com/astro/embedded-nrf24l01"
 homepage = "https://github.com/astro/embedded-nrf24l01"
+edition = "2018"
 
 [dependencies]
 embedded-hal = "0.2.2"

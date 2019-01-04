@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use {PIPES_COUNT, MIN_ADDR_BYTES, MAX_ADDR_BYTES};
+use crate::{PIPES_COUNT, MIN_ADDR_BYTES, MAX_ADDR_BYTES};
 
 pub trait Register {
     /// Address in the register map
@@ -11,8 +11,8 @@ pub trait Register {
         Self::read_len()
     }
 
-    fn encode(&self, &mut [u8]);
-    fn decode(&[u8]) -> Self;
+    fn encode(&self, data: &mut [u8]);
+    fn decode(data: &[u8]) -> Self;
 }
 
 macro_rules! def_simple {

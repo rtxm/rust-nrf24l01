@@ -1,8 +1,8 @@
 use core::fmt;
-use device::Device;
-use config::Configuration;
-use rx::RxMode;
-use tx::TxMode;
+use crate::device::Device;
+use crate::config::Configuration;
+use crate::rx::RxMode;
+use crate::tx::TxMode;
 
 /// Represents **Standby-I** mode
 ///

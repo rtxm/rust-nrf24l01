@@ -15,26 +15,26 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal::blocking::spi::Transfer as SpiTransfer;
 
 mod config;
-pub use config::{Configuration, CrcMode, DataRate};
+pub use crate::config::{Configuration, CrcMode, DataRate};
 pub mod setup;
 
 mod registers;
-use registers::{Register, Config, Status, SetupAw};
+use crate::registers::{Register, Config, Status, SetupAw};
 mod command;
-use command::{Command, ReadRegister, WriteRegister};
+use crate::command::{Command, ReadRegister, WriteRegister};
 mod payload;
-pub use payload::Payload;
+pub use crate::payload::Payload;
 mod error;
-pub use error::Error;
+pub use crate::error::Error;
 
 mod device;
-pub use device::Device;
+pub use crate::device::Device;
 mod standby;
-pub use standby::StandbyMode;
+pub use crate::standby::StandbyMode;
 mod rx;
-pub use rx::RxMode;
+pub use crate::rx::RxMode;
 mod tx;
-pub use tx::TxMode;
+pub use crate::tx::TxMode;
 
 pub const PIPES_COUNT: usize = 6;
 pub const MIN_ADDR_BYTES: usize = 3;

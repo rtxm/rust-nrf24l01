@@ -1,9 +1,9 @@
 use core::fmt;
-use command::WriteTxPayload;
-use registers::{Status, FifoStatus, ObserveTx};
-use device::Device;
-use standby::StandbyMode;
-use config::Configuration;
+use crate::command::WriteTxPayload;
+use crate::registers::{Status, FifoStatus, ObserveTx};
+use crate::device::Device;
+use crate::standby::StandbyMode;
+use crate::config::Configuration;
 
 /// Represents **TX Mode** and the associated **TX Settling** and
 /// **Standby-II** states

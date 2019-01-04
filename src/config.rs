@@ -1,7 +1,7 @@
-use command::{FlushRx, FlushTx, Nop};
-use registers::{Status, RfCh, RfSetup, TxAddr, EnRxaddr, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
-use device::Device;
-use PIPES_COUNT;
+use crate::command::{FlushRx, FlushTx, Nop};
+use crate::registers::{Status, RfCh, RfSetup, TxAddr, EnRxaddr, SetupRetr, EnAa, SetupAw, Dynpd, Feature};
+use crate::device::Device;
+use crate::PIPES_COUNT;
 
 /// Supported air data rates.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -100,7 +100,7 @@ pub trait Configuration {
                 match pipe_no {
                     $(
                         $no => {
-                            use registers::$name;
+                            use crate::registers::$name;
                             let register = $name::new(addr);
                             self.device().write_register(register)?;
                         }
@@ -199,7 +199,7 @@ pub trait Configuration {
         // Set static payload lengths
         macro_rules! set_rx_pw {
             ($name: ident, $index: expr) => ({
-                use registers::$name;
+                use crate::registers::$name;
                 let length = lengths[$index]
                     .unwrap_or(0);
                 let mut register = $name(0);

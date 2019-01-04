@@ -1,10 +1,10 @@
 use core::fmt;
-use command::{ReadRxPayloadWidth, ReadRxPayload};
-use registers::FifoStatus;
-use device::Device;
-use standby::StandbyMode;
-use payload::Payload;
-use config::Configuration;
+use crate::command::{ReadRxPayloadWidth, ReadRxPayload};
+use crate::registers::FifoStatus;
+use crate::device::Device;
+use crate::standby::StandbyMode;
+use crate::payload::Payload;
+use crate::config::Configuration;
 
 pub struct RxMode<D: Device> {
     device: D,
