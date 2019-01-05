@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use {PIPES_COUNT, MIN_ADDR_BYTES, MAX_ADDR_BYTES};
+use crate::{MAX_ADDR_BYTES, MIN_ADDR_BYTES, PIPES_COUNT};
 
 pub trait Register {
     /// Address in the register map
@@ -11,12 +11,12 @@ pub trait Register {
         Self::read_len()
     }
 
-    fn encode(&self, &mut [u8]);
-    fn decode(&[u8]) -> Self;
+    fn encode(&self, data: &mut [u8]);
+    fn decode(data: &[u8]) -> Self;
 }
 
 macro_rules! def_simple {
-    ($name: ident) => (
+    ($name: ident) => {
         pub struct $name(pub u8);
 
         impl $name {
@@ -26,12 +26,12 @@ macro_rules! def_simple {
                 $name(data[0])
             }
         }
-    )
+    };
 }
 
 /// Common for all registers with 1 bytes of data
 macro_rules! impl_register {
-    ($name: ident, $addr: expr) => (
+    ($name: ident, $addr: expr) => {
         impl Register for $name {
             fn addr() -> u8 {
                 $addr
@@ -61,12 +61,11 @@ macro_rules! impl_register {
                 self.0 == rhs.0
             }
         }
-    )
+    };
 }
 
-
 macro_rules! def_address_register {
-    ($name: ident, $addr: expr) => (
+    ($name: ident, $addr: expr) => {
         pub struct $name {
             addr: [u8; MAX_ADDR_BYTES],
             len: u8,
@@ -103,14 +102,17 @@ macro_rules! def_address_register {
 
                 let mut addr = [0; MAX_ADDR_BYTES];
                 addr[0..len].copy_from_slice(buf);
-                $name { addr, len: len as u8 }
+                $name {
+                    addr,
+                    len: len as u8,
+                }
             }
         }
-    )
+    };
 }
 
 macro_rules! def_pipes_accessors {
-    ($name: ident, $default: expr, $getter: ident, $setter: ident) => (
+    ($name: ident, $default: expr, $getter: ident, $setter: ident) => {
         impl $name {
             #[inline]
             pub fn $getter(&self, pipe_no: usize) -> bool {
@@ -144,7 +146,7 @@ macro_rules! def_pipes_accessors {
                 bools
             }
         }
-    )
+    };
 }
 
 bitfield! {
@@ -278,7 +280,7 @@ impl_register!(RxAddrP5, 0x0F);
 def_address_register!(TxAddr, 0x10);
 
 macro_rules! def_rx_pw {
-    ($name: ident, $addr: expr) => (
+    ($name: ident, $addr: expr) => {
         bitfield! {
             /// Static payload length for RX
             pub struct $name(u8);
@@ -288,7 +290,7 @@ macro_rules! def_rx_pw {
             pub u8, get, set: 5, 0;
         }
         impl_register!($name, $addr);
-    )
+    };
 }
 
 def_rx_pw!(RxPwP0, 0x11);

@@ -1,8 +1,8 @@
+use crate::config::Configuration;
+use crate::device::Device;
+use crate::rx::RxMode;
+use crate::tx::TxMode;
 use core::fmt;
-use device::Device;
-use config::Configuration;
-use rx::RxMode;
-use tx::TxMode;
 
 /// Represents **Standby-I** mode
 ///
@@ -30,7 +30,7 @@ impl<D: Device> StandbyMode<D> {
         device.ce_disable();
         StandbyMode { device }
     }
-    
+
     /// Go into RX mode
     pub fn rx(self) -> Result<RxMode<D>, (D, D::Error)> {
         let mut device = self.device;
@@ -39,7 +39,7 @@ impl<D: Device> StandbyMode<D> {
             Ok(()) => {
                 device.ce_enable();
                 Ok(RxMode::new(device))
-            },
+            }
             Err(e) => Err((device, e)),
         }
     }
@@ -52,7 +52,7 @@ impl<D: Device> StandbyMode<D> {
             Ok(()) => {
                 // No need to device.ce_enable(); yet
                 Ok(TxMode::new(device))
-            },
+            }
             Err(e) => Err((device, e)),
         }
     }

@@ -1,5 +1,5 @@
-use command::Command;
-use registers::{Register, Config, Status};
+use crate::command::Command;
+use crate::registers::{Config, Register, Status};
 
 /// Trait that hides all the GPIO/SPI type parameters for use by the
 /// operation modes
@@ -20,7 +20,10 @@ pub trait Device {
         r
     }
 
-    fn send_command<C: Command>(&mut self, command: &C) -> Result<(Status, C::Response), Self::Error>;
+    fn send_command<C: Command>(
+        &mut self,
+        command: &C,
+    ) -> Result<(Status, C::Response), Self::Error>;
     fn write_register<R: Register>(&mut self, register: R) -> Result<Status, Self::Error>;
     fn read_register<R: Register>(&mut self) -> Result<(Status, R), Self::Error>;
 
@@ -43,5 +46,6 @@ pub trait Device {
     }
 
     fn update_config<F, R>(&mut self, f: F) -> Result<R, Self::Error>
-        where F: FnOnce(&mut Config) -> R;
+    where
+        F: FnOnce(&mut Config) -> R;
 }
