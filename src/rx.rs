@@ -2,7 +2,7 @@ use crate::command::{ReadRxPayload, ReadRxPayloadWidth};
 use crate::config::Configuration;
 use crate::device::Device;
 use crate::payload::Payload;
-use crate::registers::FifoStatus;
+use crate::registers::{FifoStatus, CD};
 use crate::standby::StandbyMode;
 use core::fmt;
 
@@ -39,6 +39,18 @@ impl<D: Device> RxMode<D> {
                     None
                 }
             })
+    }
+
+    /// Is an in-band RF signal detected?
+    ///
+    /// The internal carrier detect signal must be high for 40μs
+    /// (NRF24L01+) or 128μs (NRF24L01) before the carrier detect
+    /// register is set. Note that changing from standby to receive
+    /// mode also takes 130μs.
+    pub fn has_carrier(&mut self) -> Result<bool, D::Error> {
+        self.device
+            .read_register::<CD>()
+            .map(|(_, cd)| cd.0 & 1 == 1)
     }
 
     /// Is the RX queue empty?
