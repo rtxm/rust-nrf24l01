@@ -266,6 +266,9 @@ bitfield! {
 }
 impl_register!(ObserveTx, 0x08);
 
+def_simple!(CD);
+impl_register!(CD, 0x09);
+
 def_address_register!(RxAddrP0, 0x0A);
 def_address_register!(RxAddrP1, 0x0B);
 def_simple!(RxAddrP2);
