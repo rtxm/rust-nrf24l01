@@ -11,8 +11,9 @@ extern crate bitfield;
 
 use core::fmt;
 use core::fmt::Debug;
+use core::convert::Infallible;
 use embedded_hal::blocking::spi::Transfer as SpiTransfer;
-use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::v2::OutputPin;
 
 mod config;
 pub use crate::config::{Configuration, CrcMode, DataRate};
@@ -41,14 +42,14 @@ pub const MIN_ADDR_BYTES: usize = 3;
 pub const MAX_ADDR_BYTES: usize = 5;
 
 /// Driver for the nRF24L01+
-pub struct NRF24L01<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8>> {
+pub struct NRF24L01<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8>> {
     ce: CE,
     csn: CSN,
     spi: SPI,
     config: Config,
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> fmt::Debug
+impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> fmt::Debug
     for NRF24L01<CE, CSN, SPI>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -56,13 +57,13 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: De
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug>
+impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug>
     NRF24L01<CE, CSN, SPI>
 {
     /// Construct a new driver instance.
     pub fn new(mut ce: CE, mut csn: CSN, spi: SPI) -> Result<StandbyMode<Self>, Error<SPIE>> {
-        ce.set_low();
-        csn.set_high();
+        ce.set_low().unwrap();
+        csn.set_high().unwrap();
 
         // Reset value
         let mut config = Config(0b0000_1000);
@@ -89,17 +90,17 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: De
     }
 }
 
-impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> Device
+impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> Device
     for NRF24L01<CE, CSN, SPI>
 {
     type Error = Error<SPIE>;
 
     fn ce_enable(&mut self) {
-        self.ce.set_high();
+        self.ce.set_high().unwrap();
     }
 
     fn ce_disable(&mut self) {
-        self.ce.set_low();
+        self.ce.set_low().unwrap();
     }
 
     fn send_command<C: Command>(
@@ -114,9 +115,9 @@ impl<CE: OutputPin, CSN: OutputPin, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: De
         command.encode(buf);
 
         // SPI transaction
-        self.csn.set_low();
+        self.csn.set_low().unwrap();
         let transfer_result = self.spi.transfer(buf).map(|_| {});
-        self.csn.set_high();
+        self.csn.set_high().unwrap();
         // Propagate Err only after csn.set_high():
         transfer_result?;
 

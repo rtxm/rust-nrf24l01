@@ -11,5 +11,5 @@ homepage = "https://github.com/astro/embedded-nrf24l01"
 edition = "2018"
 
 [dependencies]
-embedded-hal = "0.2.2"
-bitfield = "0.13.1"
+embedded-hal = "0.2.3"
+bitfield = "0.13.2"
