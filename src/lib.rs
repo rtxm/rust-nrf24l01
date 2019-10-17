@@ -11,7 +11,6 @@ extern crate bitfield;
 
 use core::fmt;
 use core::fmt::Debug;
-use core::convert::Infallible;
 use embedded_hal::blocking::spi::Transfer as SpiTransfer;
 use embedded_hal::digital::v2::OutputPin;
 
@@ -42,23 +41,23 @@ pub const MIN_ADDR_BYTES: usize = 3;
 pub const MAX_ADDR_BYTES: usize = 5;
 
 /// Driver for the nRF24L01+
-pub struct NRF24L01<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8>> {
+pub struct NRF24L01<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTransfer<u8>> {
     ce: CE,
     csn: CSN,
     spi: SPI,
     config: Config,
 }
 
-impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> fmt::Debug
-    for NRF24L01<CE, CSN, SPI>
+impl<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> fmt::Debug
+    for NRF24L01<E, CE, CSN, SPI>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "NRF24L01")
     }
 }
 
-impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug>
-    NRF24L01<CE, CSN, SPI>
+impl<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug>
+    NRF24L01<E, CE, CSN, SPI>
 {
     /// Construct a new driver instance.
     pub fn new(mut ce: CE, mut csn: CSN, spi: SPI) -> Result<StandbyMode<Self>, Error<SPIE>> {
@@ -90,8 +89,8 @@ impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI:
     }
 }
 
-impl<CE: OutputPin<Error = Infallible>, CSN: OutputPin<Error = Infallible>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> Device
-    for NRF24L01<CE, CSN, SPI>
+impl<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTransfer<u8, Error = SPIE>, SPIE: Debug> Device
+    for NRF24L01<E, CE, CSN, SPI>
 {
     type Error = Error<SPIE>;
 
