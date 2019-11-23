@@ -93,6 +93,23 @@ pub trait Configuration {
         })
     }
 
+    /// Sets the interrupt mask
+    /// 
+    /// When an interrupt mask is set to true, the interrupt is masked and will not fire on the IRQ pin.
+    /// When set to false, it will trigger the IRQ pin.
+    fn set_interrupt_mask(
+        &mut self,
+        data_ready_rx: bool,
+        data_sent_tx: bool,
+        max_retransmits_tx: bool
+    ) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
+        self.device().update_config(|config| {
+            config.set_mask_rx_dr(data_ready_rx);
+            config.set_mask_tx_ds(data_sent_tx);
+            config.set_mask_max_rt(max_retransmits_tx);
+        })
+    }
+
     fn set_pipes_rx_enable(
         &mut self,
         bools: &[bool; PIPES_COUNT],
