@@ -2,7 +2,7 @@ use crate::command::{ReadRxPayload, ReadRxPayloadWidth};
 use crate::config::Configuration;
 use crate::device::Device;
 use crate::payload::Payload;
-use crate::registers::{FifoStatus, CD};
+use crate::registers::{FifoStatus, Status, CD};
 use crate::standby::StandbyMode;
 use core::fmt;
 
@@ -29,7 +29,20 @@ impl<D: Device> RxMode<D> {
     }
 
     /// Is there any incoming data to read? Return the pipe number.
+    ///
+    /// This function acknowledges all interrupts even if there are more received packets, so the
+    /// caller must repeat the call until the function returns None before waiting for the next RX
+    /// interrupt.
     pub fn can_read(&mut self) -> Result<Option<u8>, D::Error> {
+        // Acknowledge all interrupts.
+        // Note that we cannot selectively acknowledge the RX interrupt here - if any TX interrupt
+        // is still active, the IRQ pin could otherwise not be used for RX interrupts.
+        let mut clear = Status(0);
+        clear.set_rx_dr(true);
+        clear.set_tx_ds(true);
+        clear.set_max_rt(true);
+        self.device.write_register(clear)?;
+
         self.device
             .read_register::<FifoStatus>()
             .map(|(status, fifo_status)| {
