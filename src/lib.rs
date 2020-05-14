@@ -66,9 +66,9 @@ impl<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTran
 
         // Reset value
         let mut config = Config(0b0000_1000);
-        config.set_mask_rx_dr(true);
-        config.set_mask_tx_ds(true);
-        config.set_mask_max_rt(true);
+        config.set_mask_rx_dr(false);
+        config.set_mask_tx_ds(false);
+        config.set_mask_max_rt(false);
         let mut device = NRF24L01 {
             ce,
             csn,
