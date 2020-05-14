@@ -1,4 +1,4 @@
-use crate::command::WriteTxPayload;
+use crate::command::{FlushTx, WriteTxPayload};
 use crate::config::Configuration;
 use crate::device::Device;
 use crate::registers::{FifoStatus, ObserveTx, Status};
@@ -59,7 +59,11 @@ impl<D: Device> TxMode<D> {
         Ok(())
     }
 
-    /// Wait until FX FIFO is empty
+    /// Wait until TX FIFO is empty
+    ///
+    /// If any packet cannot be delivered and the maximum amount of retries is
+    /// reached, the TX FIFO is flushed and all other packets in the FIFO are
+    /// lost.
     pub fn wait_empty(&mut self) -> Result<(), D::Error> {
         let mut empty = false;
         while !empty {
@@ -72,6 +76,9 @@ impl<D: Device> TxMode<D> {
             // TX won't continue while MAX_RT is set
             if status.max_rt() {
                 let mut clear = Status(0);
+                // If MAX_RT is set, the packet is not removed from the FIFO, so if we do not flush
+                // the FIFO, we end up in an infinite loop
+                self.device.send_command(&FlushTx)?;
                 // Clear TX interrupts
                 clear.set_tx_ds(true);
                 clear.set_max_rt(true);
