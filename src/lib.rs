@@ -10,7 +10,6 @@
 
 
 #![no_std]
-extern crate embedded_hal;
 #[macro_use]
 extern crate bitfield;
 
