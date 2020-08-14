@@ -112,16 +112,9 @@ pub trait Configuration {
     /// Set CRC mode
     fn set_crc(
         &mut self,
-        mode: Option<CrcMode>,
+        mode: CrcMode,
     ) -> Result<(), <<Self as Configuration>::Inner as Device>::Error> {
-        self.device().update_config(|config| match mode {
-            None => config.set_en_crc(false),
-            Some(mode) => match mode {
-                CrcMode::Disabled => config.set_en_crc(false),
-                CrcMode::OneByte => config.set_crco(false),
-                CrcMode::TwoBytes => config.set_crco(true),
-            },
-        })
+        self.device().update_config(|config| mode.set_config(config))
     }
 
     /// Sets the interrupt mask
