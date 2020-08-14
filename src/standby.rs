@@ -29,6 +29,7 @@ impl<D: Device> StandbyMode<D> {
         }
     }
 
+    /// Should be a no-op
     pub fn power_down(mut self) -> Result<D, (Self, D::Error)> {
         match self.device.update_config(|config| config.set_pwr_up(false)) {
             Ok(()) => Ok(self.device),

@@ -68,12 +68,14 @@ pub trait Configuration {
         Ok(())
     }
 
+    /// Get frequency offset (channel)
     fn get_frequency(&mut self) -> Result<u8, <<Self as Configuration>::Inner as Device>::Error> {
         let (_, register) = self.device().read_register::<RfCh>()?;
         let freq_offset = register.rf_ch();
         Ok(freq_offset)
     }
 
+    /// Set frequency offset (channel)
     fn set_frequency(
         &mut self,
         freq_offset: u8,
