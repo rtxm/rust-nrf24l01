@@ -7,6 +7,8 @@ use core::fmt::Debug;
 pub enum Error<SPIE: Debug> {
     /// Wrap an SPI error
     SpiError(SPIE),
+    /// Module not connected
+    NotConnected,
 }
 
 impl<SPIE: Debug> From<SPIE> for Error<SPIE> {

@@ -90,7 +90,12 @@ impl<E: Debug, CE: OutputPin<Error = E>, CSN: OutputPin<Error = E>, SPI: SpiTran
             spi,
             config,
         };
-        assert!(device.is_connected().unwrap());
+
+        match device.is_connected() {
+            Err(e) => return Err(e),
+            Ok(false) => return Err(Error::NotConnected),
+            _ => {}
+        }
 
         // TODO: activate features?
 
