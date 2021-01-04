@@ -1,9 +1,9 @@
 extern crate nrf24l01;
 
-use std::time::Duration;
 use std::thread::sleep;
+use std::time::Duration;
 
-use nrf24l01::{TXConfig, NRF24L01, PALevel, OperatingMode};
+use nrf24l01::{OperatingMode, PALevel, TXConfig, NRF24L01};
 
 fn main() {
     let config = TXConfig {
@@ -24,14 +24,16 @@ fn main() {
             Ok(retries) => {
                 println!("Message sent, {} retries needed", retries);
                 if device.data_available().unwrap() {
-                    device.read_all(|packet| {
-                        println!("Received back {:?} bytes", packet.len());
-                        println!("ACK Payload {:?}", packet)
-                    }).unwrap();
+                    device
+                        .read_all(|packet| {
+                            println!("Received back {:?} bytes", packet.len());
+                            println!("ACK Payload {:?}", packet)
+                        })
+                        .unwrap();
                 } else {
                     println!("Blank ACK")
                 }
-            },
+            }
             Err(err) => {
                 println!("Destination unreachable: {:?}", err);
                 device.flush_output().unwrap()

@@ -2,7 +2,7 @@ extern crate rppal;
 
 use std::io;
 
-use self::rppal::gpio::{GPIO, Mode, Level};
+use self::rppal::gpio::{Level, Mode, GPIO};
 
 pub struct CEPin {
     gpio: GPIO,

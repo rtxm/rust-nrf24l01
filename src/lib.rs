@@ -6,7 +6,6 @@
 // option.  This file may not be copied, modified, or distributed
 // except according to those terms.
 
-
 //! A pure Rust user space driver for NRF24L01(+) transceivers on Linux.
 //!
 //! The aim of this driver is to provide a rustic, easy to use, no non-sense
@@ -112,7 +111,6 @@
 //! }
 //! ```
 
-
 extern crate spidev;
 #[cfg(feature = "rpi_accel")]
 mod rpi_ce;
@@ -128,7 +126,6 @@ use rpi_ce::CEPin;
 #[cfg(not(feature = "rpi_accel"))]
 use sysfs_ce::CEPin;
 
-
 /// Supported air data rates.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum DataRate {
@@ -142,7 +139,6 @@ impl Default for DataRate {
         DataRate::R1Mbps
     }
 }
-
 
 /// Supported power amplifier levels.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -164,8 +160,7 @@ impl Default for PALevel {
 }
 
 /// Receiver mode configuration
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct RXConfig {
     /// data rate, defaults to `DataRate::R1Mbps`.
     pub data_rate: DataRate,
@@ -207,10 +202,8 @@ pub struct RXConfig {
     pub pipe5_addr_lsb: Option<u8>,
 }
 
-
 /// Transmitter mode configuration
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TXConfig {
     /// data rate, defaults to `DataRate::R1Mbps`
     ///
@@ -245,7 +238,6 @@ pub struct TXConfig {
     /// The address is in little endian order: the first byte is the least significant one.
     pub pipe0_address: [u8; 5],
 }
-
 
 /// The Operating mode, either Receiver or Transmitter.
 #[derive(Debug)]
@@ -319,8 +311,6 @@ const DYNPD: Register = 0x1C;
 //  Feature register (content EN_DPL, EN_ACK_PAY...), p 59
 const FEATURE: Register = 0x1D;
 
-
-
 /// The driver
 pub struct NRF24L01 {
     ce: CEPin,
@@ -346,10 +336,7 @@ impl NRF24L01 {
         // For single byte registers only.
         // Return (STATUS, register)
         let mut response_buffer = [0u8; 2];
-        self.send_command(
-            &[R_REGISTER | register, 0],
-            &mut response_buffer,
-        )?;
+        self.send_command(&[R_REGISTER | register, 0], &mut response_buffer)?;
         Ok((response_buffer[0], response_buffer[1]))
     }
 
@@ -446,10 +433,7 @@ impl NRF24L01 {
         } else {
             0xF0
         };
-        self.write_register(
-            SETUP_RETR,
-            retry_delay_bits | retry_bits,
-        )?;
+        self.write_register(SETUP_RETR, retry_delay_bits | retry_bits)?;
         // base config is 2 bytes for CRC and TX mode on
         // only reflect TX_DS and MAX_RT on the IRQ pin
         Ok(0b0100_1100)
@@ -504,7 +488,8 @@ impl NRF24L01 {
         match *mode {
             OperatingMode::RX(ref config) => self.configure_receiver(config),
             OperatingMode::TX(ref config) => self.configure_transmitter(config),
-        }.and_then(|base_config| {
+        }
+        .and_then(|base_config| {
             // Go!
             self.base_config = base_config;
             self.power_up()
@@ -580,17 +565,13 @@ impl NRF24L01 {
         Ok(())
     }
 
-
     /// Is there any incoming data to read?
     ///
     /// Works in both RX and TX modes. In TX mode, this function returns true if
     /// a ACK payload has been received.
     pub fn data_available(&self) -> io::Result<bool> {
-        self.read_register(FIFO_STATUS).and_then(
-            |(_, fifo_status)| {
-                Ok(fifo_status.trailing_zeros() >= 1)
-            },
-        )
+        self.read_register(FIFO_STATUS)
+            .and_then(|(_, fifo_status)| Ok(fifo_status.trailing_zeros() >= 1))
     }
 
     /// Read data from the receiver queue, one packet at a time.
@@ -611,7 +592,7 @@ impl NRF24L01 {
         let mut pl_wd: [u8; 2] = [0, 0]; // for packet width
         let mut receive_buffer = [0u8; 33]; // for packet
         let out_buffer = [R_RX_PAYLOAD; 33]; // for command
-        // message counter
+                                             // message counter
         let mut count = 0u8;
         // save CE state
         self.ce.save_state();
@@ -624,10 +605,7 @@ impl NRF24L01 {
             if width != 0 {
                 // can it be false?
                 let ubound = width + 1;
-                self.send_command(
-                    &out_buffer[..ubound],
-                    &mut receive_buffer[..ubound],
-                )?;
+                self.send_command(&out_buffer[..ubound], &mut receive_buffer[..ubound])?;
                 process_packet(&receive_buffer[1..ubound]);
                 count += 1;
             }
@@ -768,7 +746,6 @@ impl NRF24L01 {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

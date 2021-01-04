@@ -13,7 +13,6 @@ fn main() {
                 println!("<ce> must be an interger!");
                 return;
             }
-
         };
         let spi: u8 = match args[2].parse() {
             Ok(n) => n,

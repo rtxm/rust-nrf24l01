@@ -1,9 +1,9 @@
 extern crate nrf24l01;
 
-use std::time::Duration;
 use std::thread::sleep;
+use std::time::Duration;
 
-use nrf24l01::{RXConfig, NRF24L01, PALevel, OperatingMode};
+use nrf24l01::{OperatingMode, PALevel, RXConfig, NRF24L01};
 
 fn main() {
     let config = RXConfig {
@@ -31,10 +31,12 @@ fn main() {
     loop {
         sleep(Duration::from_millis(500));
         if device.data_available().unwrap() {
-            device.read_all(|packet| {
-                println!("Received {:?} bytes", packet.len());
-                println!("Payload {:?}", packet);
-            }).unwrap();
+            device
+                .read_all(|packet| {
+                    println!("Received {:?} bytes", packet.len());
+                    println!("Payload {:?}", packet);
+                })
+                .unwrap();
         }
     }
 }
