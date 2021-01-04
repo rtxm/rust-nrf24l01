@@ -469,11 +469,11 @@ impl NRF24L01 {
     /// System IO errors
     ///
     pub fn new(ce_pin: u64, spi_device: u8) -> io::Result<NRF24L01> {
-        let mut spi = try!(spidev::Spidev::open(format!("/dev/spidev0.{}", spi_device)));
+        let mut spi = spidev::Spidev::open(format!("/dev/spidev0.{}", spi_device))?;
         let options = spidev::SpidevOptions::new()
             .bits_per_word(8)
             .max_speed_hz(10_000_000)
-            .mode(spidev::SPI_MODE_0)
+            .mode(spidev::SpiModeFlags::SPI_MODE_0)
             .build();
         spi.configure(&options)?;
         let ce = CEPin::new(ce_pin)?;

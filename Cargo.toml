@@ -1,6 +1,6 @@
 [package]
 name = "nrf24l01"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Romuald Texier-Marcadé <romuadtm@gmail.com>"]
 description = "A pure Rust user space driver for NRF24L01(+) transceivers on Linux."
 readme = "README.md"
@@ -9,12 +9,13 @@ categories = ["embedded", "hardware-support"]
 keywords = ["driver", "wireless", "radio", "transceiver", "nrf"]
 repository = "https://github.com/rtxm/rust-nrf24l01"
 homepage = "https://github.com/rtxm/rust-nrf24l01"
+edition = "2018"
 
 [features]
 default = ["sysfs_gpio"]
 rpi_accel = ["rppal"]
 
 [dependencies]
-spidev = "0.4.0"
+spidev = "0.4"
 sysfs_gpio = { version = "0.5.1", optional = true }
 rppal = { version = '0.1.3', optional = true }
