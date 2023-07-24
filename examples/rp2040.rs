@@ -13,7 +13,7 @@ use embassy_sync::blocking_mutex::{Mutex, raw::NoopRawMutex};
 use embassy_executor::Spawner;
 use embassy_rp::{
     spi::Spi,
-    gpio::{Level, Output, Pin}, spi::{Async, Blocking}
+    gpio::{Level, Output, Pin}, spi::Blocking
 };
 use embassy_time::{Duration, Timer};
 
@@ -22,15 +22,6 @@ async fn blink<T>(led: &mut Output<'_, T>) where T: Pin {
     Timer::after(Duration::from_millis(100)).await;
     led.set_low();
     Timer::after(Duration::from_millis(100)).await;
-}
-
-async fn spi_transfer<A>(spi: &mut Spi<'_, A, Async>) where A: embassy_rp::spi::Instance {
-    let tx_buf = [1_u8, 2, 3, 4, 5, 6];
-    let mut rx_buf = [0_u8; 6];
-    defmt::info!("tx_buf = {:?}", tx_buf);
-    spi.transfer(&mut rx_buf, &tx_buf).await.unwrap();
-    defmt::info!("rx_buf = {:?}", rx_buf);
-    Timer::after(Duration::from_secs(1)).await;
 }
 
 #[embassy_executor::main]
@@ -72,8 +63,8 @@ async fn main(_spawner: Spawner) {
         device.push(0, message).unwrap();
         match device.send() {
             Ok(retries) => defmt::info!("Message sent, {} retries needed", retries),
-            Err(err) => {
-                defmt::error!("Destination unreachable"); // TODO: print err?
+            Err(_err) => {
+                defmt::error!("Destination unreachable"); // TODO: print/format err somehow?
                 device.flush_output().unwrap()
             }
         };

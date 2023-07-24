@@ -356,7 +356,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
             Ok(()) => {
                 Ok(())
             }
-            Err(err) => {
+            Err(_err) => {
                 Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg) // TODO: convert error?
             }
         }
