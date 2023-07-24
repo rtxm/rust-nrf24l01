@@ -42,3 +42,5 @@ embassy-rp = { version = "0.1", git = "https://github.com/embassy-rs/embassy", f
 embassy-sync = { version = "0.2", git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
 embassy-embedded-hal = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
 embedded-hal = { version = "=1.0.0-alpha.11" }
+# allocator
+embedded-alloc = "0.5.0"
