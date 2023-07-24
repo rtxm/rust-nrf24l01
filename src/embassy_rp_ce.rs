@@ -1,38 +1,31 @@
-extern crate rppal;
+use anyhow::Result;
+use embassy_rp::gpio::{Level};
+use embedded_hal::digital::OutputPin;
 
-use std::io;
-
-use self::rppal::gpio::{Level, Mode, GPIO};
-
-pub struct CEPin {
-    gpio: GPIO,
-    ce_pin: u8,
+pub struct CEPin<T> {
+    output: T,
     value: Level,
     saved_value: Level,
 }
 
-impl CEPin {
+impl<T> CEPin<T> where T: OutputPin {
     // add code here
-    pub fn new(pin_num: u64) -> Result<CEPin> {
-        let pin_num8 = pin_num as u8;
-        let mut gpio = GPIO::new().unwrap();
-        gpio.set_mode(pin_num8, Mode::Output);
+    pub fn new(output: T) -> Result<CEPin<T>> {
         Ok(CEPin {
-            gpio: gpio,
-            ce_pin: pin_num8,
+            output: output,
             value: Level::Low,
             saved_value: Level::Low,
         })
     }
 
     pub fn up(&mut self) -> Result<()> {
-        self.gpio.write(self.ce_pin, Level::High);
+        self.output.set_high();
         self.value = Level::High;
         Ok(())
     }
 
     pub fn down(&mut self) -> Result<()> {
-        self.gpio.write(self.ce_pin, Level::Low);
+        self.output.set_low();
         self.value = Level::Low;
         Ok(())
     }
@@ -42,7 +35,7 @@ impl CEPin {
     }
 
     pub fn restore_state(&mut self) -> Result<()> {
-        self.gpio.write(self.ce_pin, self.saved_value);
+        self.output.set_state(self.saved_value);
         self.value = self.saved_value;
         Ok(())
     }

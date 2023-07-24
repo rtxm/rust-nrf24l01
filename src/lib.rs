@@ -1,3 +1,5 @@
+#![no_std]
+
 // Copyright 2017, Romuald Texier-Marcadé <romualdtm@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -111,20 +113,30 @@
 //! }
 //! ```
 
+#[cfg(feature = "linux")]
 extern crate spidev;
 #[cfg(feature = "rpi_accel")]
 mod rpi_ce;
-#[cfg(not(feature = "rpi_accel"))]
+#[cfg(feature = "linux")]
 mod sysfs_ce;
+#[cfg(feature = "embassy_rp")]
+mod embassy_rp_ce;
 
+#[cfg(feature = "linux")]
 use std::io;
+#[cfg(feature = "linux")]
 use std::thread::sleep;
+#[cfg(feature = "linux")]
 use std::time::Duration;
 
+use embedded_hal::digital::OutputPin;
+use embedded_hal::spi::SpiDevice;
 #[cfg(feature = "rpi_accel")]
 use rpi_ce::CEPin;
-#[cfg(not(feature = "rpi_accel"))]
+#[cfg(feature = "linux")]
 use sysfs_ce::CEPin;
+#[cfg(feature = "embassy_rp")]
+use embassy_rp_ce::CEPin;
 
 /// Supported air data rates.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -312,27 +324,34 @@ const DYNPD: Register = 0x1C;
 const FEATURE: Register = 0x1D;
 
 /// The driver
-pub struct NRF24L01 {
+/*pub struct NRF24L01 {
     ce: CEPin,
     spi: spidev::Spidev,
     base_config: u8,
+}*/
+
+pub struct NRF24L01<SPI, PIN> {
+    ce: CEPin<PIN>,
+    spi: SPI,
+    base_config: u8,
 }
 
-impl NRF24L01 {
+use anyhow::Result;
+
+impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     // Private methods and functions
 
-    fn send_command(&self, data_out: &[u8], data_in: &mut [u8]) -> io::Result<()> {
-        let mut transfer = spidev::SpidevTransfer::read_write(data_out, data_in);
-        self.spi.transfer(&mut transfer)
+    fn send_command(&self, data_out: &[u8], data_in: &mut [u8]) -> Result<()> {
+        return self.spi.transfer(data_in, &data_out);
     }
 
-    fn write_register(&self, register: Register, byte: u8) -> io::Result<()> {
+    fn write_register(&self, register: Register, byte: u8) -> Result<()> {
         // For single byte registers only
         let mut response_buffer = [0u8; 2];
         self.send_command(&[W_REGISTER | register, byte], &mut response_buffer)
     }
 
-    fn read_register(&self, register: Register) -> io::Result<(u8, u8)> {
+    fn read_register(&self, register: Register) -> Result<(u8, u8)> {
         // For single byte registers only.
         // Return (STATUS, register)
         let mut response_buffer = [0u8; 2];
@@ -340,7 +359,7 @@ impl NRF24L01 {
         Ok((response_buffer[0], response_buffer[1]))
     }
 
-    fn setup_rf(&self, rate: DataRate, level: PALevel) -> io::Result<()> {
+    fn setup_rf(&self, rate: DataRate, level: PALevel) -> Result<()> {
         let rate_bits: u8 = match rate {
             DataRate::R250Kbps => 0b0010_0000,
             DataRate::R1Mbps => 0,
@@ -355,7 +374,7 @@ impl NRF24L01 {
         self.write_register(RF_SETUP, rate_bits | level_bits)
     }
 
-    fn set_channel(&self, channel: u8) -> io::Result<()> {
+    fn set_channel(&self, channel: u8) -> Result<()> {
         if channel < 126 {
             self.write_register(RF_CH, channel)
         } else {
@@ -363,14 +382,14 @@ impl NRF24L01 {
         }
     }
 
-    fn set_full_address(&self, pipe: Register, address: [u8; 5]) -> io::Result<()> {
+    fn set_full_address(&self, pipe: Register, address: [u8; 5]) -> Result<()> {
         let mut response_buffer = [0u8; 6];
         let mut command = [W_REGISTER | pipe, 0, 0, 0, 0, 0];
         command[1..].copy_from_slice(&address);
         self.send_command(&command, &mut response_buffer)
     }
 
-    fn configure_receiver(&self, config: &RXConfig) -> io::Result<u8> {
+    fn configure_receiver(&self, config: &RXConfig) -> Result<u8> {
         // set data rate
         // set PA level
         self.setup_rf(config.data_rate, config.pa_level)?;
@@ -411,7 +430,7 @@ impl NRF24L01 {
         Ok(0b0011_1101)
     }
 
-    fn configure_transmitter(&self, config: &TXConfig) -> io::Result<u8> {
+    fn configure_transmitter(&self, config: &TXConfig) -> Result<u8> {
         // set data rate
         // set PA level
         self.setup_rf(config.data_rate, config.pa_level)?;
@@ -452,7 +471,7 @@ impl NRF24L01 {
     ///
     /// System IO errors
     ///
-    pub fn new(ce_pin: u64, spi_device: u8) -> io::Result<NRF24L01> {
+    pub fn new(ce_pin: u64, spi_device: u8) -> Result<NRF24L01<SPI, PIN>> {
         let mut spi = spidev::Spidev::open(format!("/dev/spidev0.{}", spi_device))?;
         let options = spidev::SpidevOptions::new()
             .bits_per_word(8)
@@ -460,9 +479,9 @@ impl NRF24L01 {
             .mode(spidev::SpiModeFlags::SPI_MODE_0)
             .build();
         spi.configure(&options)?;
-        let ce = CEPin::new(ce_pin)?;
+        let ce = ;
         Ok(NRF24L01 {
-            ce,
+            ce,:
             spi,
             base_config: 0b0000_1101,
         })
@@ -476,7 +495,7 @@ impl NRF24L01 {
     ///
     /// All commands work when the device is in standby (recommended) as well as
     /// active state.
-    pub fn configure(&mut self, mode: &OperatingMode) -> io::Result<()> {
+    pub fn configure(&mut self, mode: &OperatingMode) -> Result<()> {
         self.ce.down()?;
         // auto acknowlegement
         self.write_register(EN_AA, 0b0011_1111)?;
@@ -510,7 +529,7 @@ impl NRF24L01 {
         nb_iter: u32,
         wait_ms: u32,
         channel_table: &mut [u32; 126],
-    ) -> io::Result<()> {
+    ) -> Result<()> {
         self.write_register(EN_AA, 0u8)?;
         for _ in 0..nb_iter {
             for channel in 0..126 {
@@ -535,13 +554,13 @@ impl NRF24L01 {
     ///
     /// The power consumption is minimum in this mode, and the device ceases all operation.
     /// It only accepts configuration commands.
-    pub fn power_down(&mut self) -> io::Result<()> {
+    pub fn power_down(&mut self) -> Result<()> {
         self.ce.down()?;
         self.write_register(CONFIG, self.base_config)
     }
 
     /// Power the device up for full operation.
-    pub fn power_up(&self) -> io::Result<()> {
+    pub fn power_up(&self) -> Result<()> {
         self.write_register(CONFIG, self.base_config | 0b0000_0010)
     }
 
@@ -549,7 +568,7 @@ impl NRF24L01 {
     ///
     /// Only used in RX mode to suspend active listening.
     /// In TX mode, standby is the default state when not sending data.
-    pub fn standby(&mut self) -> io::Result<()> {
+    pub fn standby(&mut self) -> Result<()> {
         self.ce.down()?; // always returnss without error.
         Ok(())
     }
@@ -558,7 +577,7 @@ impl NRF24L01 {
     ///
     /// In RX mode, call this function after a `.configure(...)`, `.standby()` or `power_up()` to
     /// accept incoming packets.
-    pub fn listen(&mut self) -> io::Result<()> {
+    pub fn listen(&mut self) -> Result<()> {
         if self.is_receiver() {
             self.ce.up()?;
         }
@@ -569,7 +588,7 @@ impl NRF24L01 {
     ///
     /// Works in both RX and TX modes. In TX mode, this function returns true if
     /// a ACK payload has been received.
-    pub fn data_available(&self) -> io::Result<bool> {
+    pub fn data_available(&self) -> Result<bool> {
         self.read_register(FIFO_STATUS)
             .and_then(|(_, fifo_status)| Ok(fifo_status.trailing_zeros() >= 1))
     }
@@ -584,7 +603,7 @@ impl NRF24L01 {
     /// **Note**: this function puts the device in standby mode during
     /// the processing of the queue and restores operations when it returns *successfully*.
     /// So the `process_packet` callback should better return quickly.
-    pub fn read_all<F>(&mut self, mut process_packet: F) -> io::Result<u8>
+    pub fn read_all<F>(&mut self, mut process_packet: F) -> Result<u8>
     where
         F: FnMut(&[u8]) -> (),
     {
@@ -641,7 +660,7 @@ impl NRF24L01 {
     /// it receives a new, different message from the same transmitter.
     /// So, it keeps the ACK payload under hand in case the transmitter resends the same
     /// packet over again.
-    pub fn push(&self, pipe_num: u8, data: &[u8]) -> io::Result<()> {
+    pub fn push(&self, pipe_num: u8, data: &[u8]) -> Result<()> {
         let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
         if (status & 1 != 0) || (fifo_status & 0b0010_0000 != 0) {
             // TX_FIFO is full
@@ -684,7 +703,7 @@ impl NRF24L01 {
     /// # Errors
     /// Return Spidev errors as well as a custom io::ErrorKind::Timeout
     /// when the maximun number of retries has been reached.
-    pub fn send(&mut self) -> io::Result<u8> {
+    pub fn send(&mut self) -> Result<u8> {
         // clear TX_DS and MAX_RT
         self.write_register(STATUS, 0x30)?;
         // init retry counter
@@ -731,7 +750,7 @@ impl NRF24L01 {
     /// Clear input queue.
     ///
     /// In RX mode, use only when device is in standby.
-    pub fn flush_input(&self) -> io::Result<()> {
+    pub fn flush_input(&self) -> Result<()> {
         let mut buffer = [0u8];
         self.send_command(&[FLUSH_RX], &mut buffer)?;
         Ok(())
@@ -740,7 +759,7 @@ impl NRF24L01 {
     /// Clear output queue.
     ///
     /// In RX mode, use only when device is in standby.
-    pub fn flush_output(&self) -> io::Result<()> {
+    pub fn flush_output(&self) -> Result<()> {
         let mut buffer = [0u8];
         self.send_command(&[FLUSH_TX], &mut buffer)?;
         Ok(())
