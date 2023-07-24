@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+use embedded_hal::digital::OutputPin;
 use panic_probe as _;
 use defmt_rtt as _;
 
@@ -13,14 +14,14 @@ use embassy_sync::blocking_mutex::{Mutex, raw::NoopRawMutex};
 use embassy_executor::Spawner;
 use embassy_rp::{
     spi::Spi,
-    gpio::{Level, Output, Pin}, spi::Blocking
+    gpio::{Level, Output}, spi::Blocking
 };
 use embassy_time::{Duration, Timer};
 
-async fn blink<T>(led: &mut Output<'_, T>) where T: Pin {
-    led.set_high();
+async fn led_blink<T>(mut output_pin: T) where T: OutputPin {
+    output_pin.set_high();
     Timer::after(Duration::from_millis(100)).await;
-    led.set_low();
+    output_pin.set_low();
     Timer::after(Duration::from_millis(100)).await;
 }
 
@@ -58,7 +59,7 @@ async fn main(_spawner: Spawner) {
     device.configure(&OperatingMode::TX(nrf24l01_config)).unwrap();
     device.flush_output().unwrap();
     loop {
-        blink(&mut led_output).await;
+        led_blink(&mut led_output).await;
         // spi
         device.push(0, message).unwrap();
         match device.send() {
