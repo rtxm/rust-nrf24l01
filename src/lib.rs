@@ -1,4 +1,4 @@
-#![no_std]
+#![no_std] // TODO: how to put this behind #[cfg(feature = "embassy_rp")]
 
 // Copyright 2017, Romuald Texier-Marcadé <romualdtm@gmail.com>
 //
@@ -695,7 +695,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
         if (status & 1 != 0) || (fifo_status & 0b0010_0000 != 0) {
             // TX_FIFO is full
-            Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg)
+            Err(anyhow::anyhow!("Sending queue is full!")).map_err(anyhow::Error::msg) // TODO: ErrorKind::WriteZero
         } else {
             let command = if self.is_receiver() {
                 let actual_pipe_num: u8 = if pipe_num < 6 { pipe_num } else { 5 };
@@ -704,7 +704,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
                 W_TX_PAYLOAD
             };
             if data.len() > 32 {
-                Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg)
+                Err(anyhow::anyhow!("Packet too big!")).map_err(anyhow::Error::msg) // TODO: ErrorKind::InvalidData
             } else {
                 let mut out_buffer = [command; 33];
                 let ubound = data.len() + 1;
@@ -762,7 +762,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
                 // clear MAX_RT
                 self.write_register(STATUS, 0x10)?;
                 // force return
-                return Err(anyhow::anyhow!("Maximum number of retries reached!")).map_err(anyhow::Error::msg);
+                return Err(anyhow::anyhow!("Maximum number of retries reached!")).map_err(anyhow::Error::msg); // TODO: ErrorKind::TimedOut 
             };
             // Success
             counter += observe & 0x0f;
