@@ -1,5 +1,5 @@
 use anyhow::Result;
-use embassy_rp::gpio::{Level};
+use embassy_rp::gpio::Level;
 use embedded_hal::digital::OutputPin;
 
 pub struct CEPin<T> {
@@ -19,13 +19,13 @@ impl<T> CEPin<T> where T: OutputPin {
     }
 
     pub fn up(&mut self) -> Result<()> {
-        self.output.set_high();
+        self.output.set_high().unwrap(); // TODO: error checking?
         self.value = Level::High;
         Ok(())
     }
 
     pub fn down(&mut self) -> Result<()> {
-        self.output.set_low();
+        self.output.set_low().unwrap(); // TODO: error checking?
         self.value = Level::Low;
         Ok(())
     }
@@ -35,7 +35,14 @@ impl<T> CEPin<T> where T: OutputPin {
     }
 
     pub fn restore_state(&mut self) -> Result<()> {
-        self.output.set_state(self.saved_value);
+        match self.saved_value {
+            Level::High => {
+                self.output.set_high().unwrap(); // TODO: error checking?
+            }
+            Level::Low => {
+                self.output.set_low().unwrap(); // TODO: error checking?
+            }
+        }
         self.value = self.saved_value;
         Ok(())
     }

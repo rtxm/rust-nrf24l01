@@ -129,14 +129,16 @@ use std::thread::sleep;
 #[cfg(feature = "linux")]
 use std::time::Duration;
 
-use embedded_hal::digital::OutputPin;
-use embedded_hal::spi::SpiDevice;
 #[cfg(feature = "rpi_accel")]
 use rpi_ce::CEPin;
 #[cfg(feature = "linux")]
 use sysfs_ce::CEPin;
 #[cfg(feature = "embassy_rp")]
 use embassy_rp_ce::CEPin;
+#[cfg(feature = "embassy_rp")]
+use embedded_hal::digital::OutputPin;
+#[cfg(feature = "embassy_rp")]
+use embedded_hal::spi::SpiDevice;
 
 /// Supported air data rates.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -324,12 +326,14 @@ const DYNPD: Register = 0x1C;
 const FEATURE: Register = 0x1D;
 
 /// The driver
-/*pub struct NRF24L01 {
+#[cfg(feature = "linux")]
+pub struct NRF24L01 {
     ce: CEPin,
     spi: spidev::Spidev,
     base_config: u8,
-}*/
+}
 
+#[cfg(feature = "embassy_rp")]
 pub struct NRF24L01<SPI, PIN> {
     ce: CEPin<PIN>,
     spi: SPI,
@@ -338,20 +342,33 @@ pub struct NRF24L01<SPI, PIN> {
 
 use anyhow::Result;
 
+#[cfg(feature = "linux")]
+impl NRF24L01 {
+    // TODO: do not need the entire impl duplicated?
+}
+
+#[cfg(feature = "embassy_rp")]
 impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     // Private methods and functions
 
-    fn send_command(&self, data_out: &[u8], data_in: &mut [u8]) -> Result<()> {
-        return self.spi.transfer(data_in, &data_out);
+    fn send_command(&mut self, data_out: &[u8], data_in: &mut [u8]) -> Result<()> {
+        match self.spi.transfer(data_in, &data_out) {
+            Ok(()) => {
+                Ok(())
+            }
+            Err(err) => {
+                Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg) // TODO: convert error?
+            }
+        }
     }
 
-    fn write_register(&self, register: Register, byte: u8) -> Result<()> {
+    fn write_register(&mut self, register: Register, byte: u8) -> Result<()> {
         // For single byte registers only
         let mut response_buffer = [0u8; 2];
         self.send_command(&[W_REGISTER | register, byte], &mut response_buffer)
     }
 
-    fn read_register(&self, register: Register) -> Result<(u8, u8)> {
+    fn read_register(&mut self, register: Register) -> Result<(u8, u8)> {
         // For single byte registers only.
         // Return (STATUS, register)
         let mut response_buffer = [0u8; 2];
@@ -359,7 +376,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         Ok((response_buffer[0], response_buffer[1]))
     }
 
-    fn setup_rf(&self, rate: DataRate, level: PALevel) -> Result<()> {
+    fn setup_rf(&mut self, rate: DataRate, level: PALevel) -> Result<()> {
         let rate_bits: u8 = match rate {
             DataRate::R250Kbps => 0b0010_0000,
             DataRate::R1Mbps => 0,
@@ -374,7 +391,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         self.write_register(RF_SETUP, rate_bits | level_bits)
     }
 
-    fn set_channel(&self, channel: u8) -> Result<()> {
+    fn set_channel(&mut self, channel: u8) -> Result<()> {
         if channel < 126 {
             self.write_register(RF_CH, channel)
         } else {
@@ -382,14 +399,14 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         }
     }
 
-    fn set_full_address(&self, pipe: Register, address: [u8; 5]) -> Result<()> {
+    fn set_full_address(&mut self, pipe: Register, address: [u8; 5]) -> Result<()> {
         let mut response_buffer = [0u8; 6];
         let mut command = [W_REGISTER | pipe, 0, 0, 0, 0, 0];
         command[1..].copy_from_slice(&address);
         self.send_command(&command, &mut response_buffer)
     }
 
-    fn configure_receiver(&self, config: &RXConfig) -> Result<u8> {
+    fn configure_receiver(&mut self, config: &RXConfig) -> Result<u8> {
         // set data rate
         // set PA level
         self.setup_rf(config.data_rate, config.pa_level)?;
@@ -430,7 +447,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         Ok(0b0011_1101)
     }
 
-    fn configure_transmitter(&self, config: &TXConfig) -> Result<u8> {
+    fn configure_transmitter(&mut self, config: &TXConfig) -> Result<u8> {
         // set data rate
         // set PA level
         self.setup_rf(config.data_rate, config.pa_level)?;
@@ -471,7 +488,9 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// System IO errors
     ///
-    pub fn new(ce_pin: u64, spi_device: u8) -> Result<NRF24L01<SPI, PIN>> {
+
+    #[cfg(feature = "linux")]
+    pub fn new(ce_pin: u64, spi_device: u8) -> io::Result<NRF24L01> {
         let mut spi = spidev::Spidev::open(format!("/dev/spidev0.{}", spi_device))?;
         let options = spidev::SpidevOptions::new()
             .bits_per_word(8)
@@ -479,9 +498,18 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
             .mode(spidev::SpiModeFlags::SPI_MODE_0)
             .build();
         spi.configure(&options)?;
-        let ce = ;
+        let ce = CEPin::new(ce_pin)?;
         Ok(NRF24L01 {
-            ce,:
+            ce,
+            spi,
+            base_config: 0b0000_1101,
+        })
+    }
+
+    #[cfg(feature = "embassy_rp")]
+    pub fn new(spi: SPI, output: PIN) -> Result<NRF24L01<SPI, PIN>> {
+        Ok(NRF24L01 {
+            ce: CEPin::new(output)?,
             spi,
             base_config: 0b0000_1101,
         })
@@ -535,7 +563,10 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
             for channel in 0..126 {
                 self.set_channel(channel)?;
                 self.listen()?;
+                #[cfg(feature = "linux")]
                 sleep(Duration::from_millis(wait_ms as u64));
+                #[cfg(feature = "embassy_rp")]
+                embassy_time::block_for(embassy_time::Duration::from_millis(wait_ms as u64));
                 self.standby()?;
                 let (_, rpd) = self.read_register(RPD)?;
                 if rpd > 0 {
@@ -560,7 +591,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     }
 
     /// Power the device up for full operation.
-    pub fn power_up(&self) -> Result<()> {
+    pub fn power_up(&mut self) -> Result<()> {
         self.write_register(CONFIG, self.base_config | 0b0000_0010)
     }
 
@@ -588,7 +619,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// Works in both RX and TX modes. In TX mode, this function returns true if
     /// a ACK payload has been received.
-    pub fn data_available(&self) -> Result<bool> {
+    pub fn data_available(&mut self) -> Result<bool> {
         self.read_register(FIFO_STATUS)
             .and_then(|(_, fifo_status)| Ok(fifo_status.trailing_zeros() >= 1))
     }
@@ -660,14 +691,11 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// it receives a new, different message from the same transmitter.
     /// So, it keeps the ACK payload under hand in case the transmitter resends the same
     /// packet over again.
-    pub fn push(&self, pipe_num: u8, data: &[u8]) -> Result<()> {
+    pub fn push(&mut self, pipe_num: u8, data: &[u8]) -> Result<()> {
         let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
         if (status & 1 != 0) || (fifo_status & 0b0010_0000 != 0) {
             // TX_FIFO is full
-            Err(io::Error::new(
-                io::ErrorKind::WriteZero,
-                "Sending queue is full!",
-            ))
+            Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg)
         } else {
             let command = if self.is_receiver() {
                 let actual_pipe_num: u8 = if pipe_num < 6 { pipe_num } else { 5 };
@@ -676,10 +704,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
                 W_TX_PAYLOAD
             };
             if data.len() > 32 {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Packet too big!",
-                ))
+                Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg)
             } else {
                 let mut out_buffer = [command; 33];
                 let ubound = data.len() + 1;
@@ -713,14 +738,20 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         while packets_left {
             // send with a 10us pulse
             self.ce.up()?;
+            #[cfg(feature = "linux")]
             sleep(Duration::new(0, 10_000));
+            #[cfg(feature = "embassy_rp")]
+            embassy_time::block_for(embassy_time::Duration::from_micros(10));
             self.ce.down()?;
             let mut status = 0u8;
             let mut observe = 0u8;
             // wait for ACK
             while status & 0x30 == 0 {
                 // wait at least 360us
+                #[cfg(feature = "linux")]
                 sleep(Duration::new(0, 360_000));
+                #[cfg(feature = "embassy_rp")]
+                embassy_time::block_for(embassy_time::Duration::from_micros(360));
                 let outcome = self.read_register(OBSERVE_TX)?;
                 status = outcome.0;
                 observe = outcome.1;
@@ -731,10 +762,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
                 // clear MAX_RT
                 self.write_register(STATUS, 0x10)?;
                 // force return
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "Maximum number of retries reached!",
-                ));
+                return Err(anyhow::anyhow!("Maximum number of retries reached!")).map_err(anyhow::Error::msg);
             };
             // Success
             counter += observe & 0x0f;
@@ -750,7 +778,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// Clear input queue.
     ///
     /// In RX mode, use only when device is in standby.
-    pub fn flush_input(&self) -> Result<()> {
+    pub fn flush_input(&mut self) -> Result<()> {
         let mut buffer = [0u8];
         self.send_command(&[FLUSH_RX], &mut buffer)?;
         Ok(())
@@ -759,7 +787,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// Clear output queue.
     ///
     /// In RX mode, use only when device is in standby.
-    pub fn flush_output(&self) -> Result<()> {
+    pub fn flush_output(&mut self) -> Result<()> {
         let mut buffer = [0u8];
         self.send_command(&[FLUSH_TX], &mut buffer)?;
         Ok(())

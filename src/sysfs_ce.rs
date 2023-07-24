@@ -10,7 +10,7 @@ pub struct CEPin {
 
 impl CEPin {
     // add code here
-    pub fn new(pin_num: u64) -> Result<CEPin> {
+    pub fn new(pin_num: u64) -> io::Result<CEPin> {
         let ce = sysfs_gpio::Pin::new(pin_num);
         ce.export().or_else(|_| {
             Err(io::Error::new(
@@ -31,13 +31,13 @@ impl CEPin {
         })
     }
 
-    pub fn up(&mut self) -> Result<()> {
+    pub fn up(&mut self) -> io::Result<()> {
         self.ce_pin.set_value(1).unwrap();
         self.value = 1;
         Ok(())
     }
 
-    pub fn down(&mut self) -> Result<()> {
+    pub fn down(&mut self) -> io::Result<()> {
         self.ce_pin.set_value(0).unwrap();
         self.value = 0;
         Ok(())
@@ -47,7 +47,7 @@ impl CEPin {
         self.saved_value = self.value;
     }
 
-    pub fn restore_state(&mut self) -> Result<()> {
+    pub fn restore_state(&mut self) -> io::Result<()> {
         self.ce_pin.set_value(self.saved_value).unwrap();
         self.value = self.saved_value;
         Ok(())

@@ -15,11 +15,12 @@ edition = "2018"
 default = ["embassy_rp"]
 rpi_accel = ["rppal"]
 linux = ["spidev", "sysfs_gpio"]
-embassy_rp = ["embedded-hal", "anyhow", "embassy-rp"]
+embassy_rp = ["embedded-hal", "embassy-time", "anyhow", "embassy-rp"]
 
 [dependencies]
 embassy-rp = { version = "0.1", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "unstable-traits", "nightly", "unstable-pac", "time-driver"], optional = true }
 embedded-hal = { version = "=1.0.0-alpha.11", optional = true }
+embassy-time = { version = "0.1", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime"], optional = true }
 anyhow = { version = "1.0.72", optional = true, default-features = false, features = [] }
 spidev = { version = "0.4", optional = true }
 sysfs_gpio = { version = "0.5.1", optional = true }

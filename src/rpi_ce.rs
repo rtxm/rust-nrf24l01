@@ -13,7 +13,7 @@ pub struct CEPin {
 
 impl CEPin {
     // add code here
-    pub fn new(pin_num: u64) -> Result<CEPin> {
+    pub fn new(pin_num: u64) -> io::Result<CEPin> {
         let pin_num8 = pin_num as u8;
         let mut gpio = GPIO::new().unwrap();
         gpio.set_mode(pin_num8, Mode::Output);
@@ -25,13 +25,13 @@ impl CEPin {
         })
     }
 
-    pub fn up(&mut self) -> Result<()> {
+    pub fn up(&mut self) -> io::Result<()> {
         self.gpio.write(self.ce_pin, Level::High);
         self.value = Level::High;
         Ok(())
     }
 
-    pub fn down(&mut self) -> Result<()> {
+    pub fn down(&mut self) -> io::Result<()> {
         self.gpio.write(self.ce_pin, Level::Low);
         self.value = Level::Low;
         Ok(())
@@ -41,7 +41,7 @@ impl CEPin {
         self.saved_value = self.value;
     }
 
-    pub fn restore_state(&mut self) -> Result<()> {
+    pub fn restore_state(&mut self) -> io::Result<()> {
         self.gpio.write(self.ce_pin, self.saved_value);
         self.value = self.saved_value;
         Ok(())
