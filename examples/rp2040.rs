@@ -3,7 +3,7 @@
 #![feature(type_alias_impl_trait)]
 
 use embedded_alloc::Heap;
-use nrf24l01::{TXConfig, PALevel, NRF24L01, OperatingMode, RXConfig};
+use nrf24l01::{TXConfig, PALevel, NRF24L01, OperatingMode, RXConfig, DataRate};
 use panic_probe as _;
 use defmt_serial as _;
 
@@ -66,19 +66,6 @@ async fn main(_spawner: Spawner) {
     let spi0_bus: Mutex<NoopRawMutex, _> = Mutex::new(RefCell::new(spi0));
     let spi0_device = SpiDeviceWithConfig::new(&spi0_bus, spi0_cs_output, spi0_config);
     defmt::info!("set up SPI0");
-    // NRF24L01P transmitter (SPI0)
-    defmt::info!("setting up NRF24L01P transmitter");
-    let tx_ce_output = Output::new(tx_ce, Level::Low);
-    let tx_config = TXConfig {
-        channel: 108,
-        pa_level: PALevel::Low,
-        pipe0_address: *b"abcde",
-        max_retries: 3,
-        retry_delay: 2,
-        ..Default::default()
-    };
-    let mut nrf24l01_tx_device = NRF24L01::new(spi0_device, tx_ce_output).unwrap();
-    defmt::info!("set up NRF24L01P transmitter");
     // SPI1
     defmt::info!("setting up SPI1");
     let rx_ce = peripherals.PIN_9; // 12 (brown)
@@ -95,16 +82,31 @@ async fn main(_spawner: Spawner) {
     let spi1_bus: Mutex<NoopRawMutex, _> = Mutex::new(RefCell::new(spi1));
     let spi1_device = SpiDeviceWithConfig::new(&spi1_bus, spi1_cs_output, spi1_config);
     defmt::info!("set up SPI1");
+    // NRF24L01P transmitter (SPI0)
+    defmt::info!("setting up NRF24L01P transmitter");
+    let tx_ce_output = Output::new(tx_ce, Level::Low);
+    let tx_config = TXConfig {
+        data_rate: DataRate::R1Mbps,
+        channel: 108,
+        pa_level: PALevel::Low,
+        pipe0_address: *b"abcde",
+        max_retries: 3,
+        retry_delay: 2,
+        ..Default::default()
+    };
+    let mut nrf24l01_tx_device = NRF24L01::new(spi1_device, tx_ce_output).unwrap();
+    defmt::info!("set up NRF24L01P transmitter");
     // NRF24L01P receiver (SPI1)
     defmt::info!("setting up NRF24L01P receiver");
     let rx_ce_output = Output::new(rx_ce, Level::Low);
     let rx_config = RXConfig {
+        data_rate: DataRate::R1Mbps,
         channel: 108,
         pa_level: PALevel::Low,
         pipe0_address: *b"abcde",
         ..Default::default()
     };
-    let mut nrf24l01_rx_device = NRF24L01::new(spi1_device, rx_ce_output).unwrap();
+    let mut nrf24l01_rx_device = NRF24L01::new(spi0_device, rx_ce_output).unwrap();
     defmt::info!("set up NRF24L01P receiver");
     // set up tx
     defmt::info!("setting up TX");

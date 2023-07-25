@@ -350,7 +350,9 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     // Private methods and functions
 
     fn send_command(&mut self, data_out: &[u8], data_in: &mut [u8]) -> Result<(), ErrorKind> {
-        self.spi.transfer(data_in, &data_out).map_err(|_| ErrorKind::Other)
+        let result = self.spi.transfer(data_in, &data_out).map_err(|_| ErrorKind::Other);
+        defmt::debug!("send_command: data_out = {:02x} data_out = {:02x}", data_out, data_in);
+        return result;
     }
 
     fn write_register(&mut self, register: Register, byte: u8) -> Result<(), ErrorKind> {
