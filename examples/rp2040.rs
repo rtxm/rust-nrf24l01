@@ -17,6 +17,7 @@ use embassy_rp::{
     gpio::{Level, Output, Pin}, uart,
 };
 use embassy_time::Duration;
+use embassy_time::Timer;
 use embassy_rp::peripherals::UART0;
 use embassy_rp::uart::InterruptHandler;
 
@@ -27,12 +28,12 @@ embassy_rp::bind_interrupts!(struct Irqs {
     UART0_IRQ => InterruptHandler<UART0>;
 });
 
-fn blink_n_times<T>(led: &mut Output<'_, T>, n: u32) where T: Pin {
+async fn blink_n_times<T>(led: &mut Output<'_, T>, n: u32) where T: Pin {
     for _ in 0..n {
         led.set_high();
-        embassy_time::block_for(Duration::from_millis(200));
+        Timer::after(Duration::from_millis(200)).await;
         led.set_low();
-        embassy_time::block_for(Duration::from_millis(200));
+        Timer::after(Duration::from_millis(200)).await;
     }
 }
 
@@ -122,27 +123,26 @@ async fn main(_spawner: Spawner) {
     // message
     let message = b"sendtest";
     loop {
-        embassy_time::block_for(Duration::from_millis(500));
+        // sleep
+        Timer::after(Duration::from_millis(1000)).await;
         // transmit
-        defmt::info!("transmitting");
+        defmt::info!("transmit: pushing");
         nrf24l01_tx_device.push(0, message).unwrap();
-        loop {
-            embassy_time::block_for(Duration::from_millis(100));
-            match nrf24l01_tx_device.send() {
-                Ok(n) => {
-                    defmt::info!("transmitted after {} retries", n);
-                    break;
-                },
-                Err(nrf24l01::ErrorKind::TimeoutError) => {
-                    defmt::info!("transmit timed out?");
-                    nrf24l01_tx_device.flush_output().unwrap();
-                    continue;
-                },
-                Err(e) => defmt::panic!("{:?}", e)
-            }
+        defmt::info!("transmit: pushed");
+        defmt::info!("transmit: sending");
+        match nrf24l01_tx_device.send() {
+            Ok(n) => {
+                defmt::info!("transmit: sent after {} retries", n);
+            },
+            Err(nrf24l01::ErrorKind::TimeoutError) => {
+                defmt::info!("transmit: timed out?");
+                defmt::info!("transmit: flushing due to timeout");
+                nrf24l01_tx_device.flush_output().unwrap();
+                defmt::info!("transmit: flushed due to timeout");
+            },
+            Err(e) => defmt::panic!("{:?}", e)
         }
-        nrf24l01_tx_device.flush_output().unwrap();
-        defmt::info!("transmitted");        
+        defmt::info!("transmit: sent");    
         // receive
         let data_available = nrf24l01_rx_device.data_available().unwrap();
         defmt::info!("data_available = {}", data_available);
@@ -150,7 +150,6 @@ async fn main(_spawner: Spawner) {
             nrf24l01_rx_device.read_all(|packet| {
                 defmt::info!("Received {:?} bytes", packet.len());
                 defmt::info!("Payload {:?}", packet);
-                blink_n_times(&mut led_output, 100);
             }).unwrap();
         }
     }
