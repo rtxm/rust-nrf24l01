@@ -95,7 +95,7 @@ async fn main(_spawner: Spawner) {
         retry_delay: 2,
         ..Default::default()
     };
-    let mut nrf24l01_tx_device = NRF24L01::new(spi1_device, tx_ce_output).unwrap();
+    let mut nrf24l01_tx_device = NRF24L01::new(spi0_device, tx_ce_output).unwrap();
     defmt::info!("set up NRF24L01P transmitter");
     // NRF24L01P receiver (SPI1)
     defmt::info!("setting up NRF24L01P receiver");
@@ -107,7 +107,7 @@ async fn main(_spawner: Spawner) {
         pipe0_address: *b"abcde",
         ..Default::default()
     };
-    let mut nrf24l01_rx_device = NRF24L01::new(spi0_device, rx_ce_output).unwrap();
+    let mut nrf24l01_rx_device = NRF24L01::new(spi1_device, rx_ce_output).unwrap();
     defmt::info!("set up NRF24L01P receiver");
     // set up tx
     defmt::info!("setting up TX");
