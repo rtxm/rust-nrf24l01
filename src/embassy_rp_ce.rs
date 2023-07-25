@@ -12,20 +12,34 @@ impl<T> CEPin<T> where T: OutputPin {
     // add code here
     pub fn new(output: T) -> Result<CEPin<T>> {
         Ok(CEPin {
-            output: output,
+            output,
             value: Level::Low,
             saved_value: Level::Low,
         })
     }
 
     pub fn up(&mut self) -> Result<()> {
-        self.output.set_high().unwrap(); // TODO: error checking?
+        match self.output.set_high() {
+            Ok(()) => {
+
+            },
+            Err(_err) => {
+                return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
+            }
+        }
         self.value = Level::High;
         Ok(())
     }
 
     pub fn down(&mut self) -> Result<()> {
-        self.output.set_low().unwrap(); // TODO: error checking?
+        match self.output.set_low() {
+            Ok(()) => {
+
+            },
+            Err(_err) => {
+                return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
+            }
+        }
         self.value = Level::Low;
         Ok(())
     }
@@ -37,10 +51,24 @@ impl<T> CEPin<T> where T: OutputPin {
     pub fn restore_state(&mut self) -> Result<()> {
         match self.saved_value {
             Level::High => {
-                self.output.set_high().unwrap(); // TODO: error checking?
+                match self.output.set_high() {
+                    Ok(()) => {
+        
+                    },
+                    Err(_err) => {
+                        return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
+                    }
+                }
             }
             Level::Low => {
-                self.output.set_low().unwrap(); // TODO: error checking?
+                match self.output.set_low() {
+                    Ok(()) => {
+        
+                    },
+                    Err(_err) => {
+                        return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
+                    }
+                }
             }
         }
         self.value = self.saved_value;

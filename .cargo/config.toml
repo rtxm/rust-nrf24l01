@@ -4,14 +4,11 @@ target = "thumbv6m-none-eabi"
 [target.thumbv6m-none-eabi]
 runner = "elf2uf2-rs -d"
 rustflags = [
-    "-C", "link-arg=--nmagic",
-    "-C", "link-arg=-Tlink.x",
-    "-C", "link-arg=-Tlink-rp.x",
-    "-C", "link-arg=-Tdefmt.x",
-    "-C", "linker=flip-link",
-    "-C", "inline-threshold=5",
-    "-C", "no-vectorize-loops",
+  "-C", "linker=flip-link",
+  "-C", "link-arg=--nmagic",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [env]
-DEFMT_LOG = "trace"
+DEFMT_LOG = "debug"
