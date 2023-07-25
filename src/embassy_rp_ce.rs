@@ -1,6 +1,6 @@
-use anyhow::Result;
 use embassy_rp::gpio::Level;
 use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::ErrorKind;
 
 pub struct CEPin<T> {
     output: T,
@@ -10,7 +10,7 @@ pub struct CEPin<T> {
 
 impl<T> CEPin<T> where T: OutputPin {
     // add code here
-    pub fn new(output: T) -> Result<CEPin<T>> {
+    pub fn new(output: T) -> Result<CEPin<T>, ErrorKind> {
         Ok(CEPin {
             output,
             value: Level::Low,
@@ -18,28 +18,14 @@ impl<T> CEPin<T> where T: OutputPin {
         })
     }
 
-    pub fn up(&mut self) -> Result<()> {
-        match self.output.set_high() {
-            Ok(()) => {
-
-            },
-            Err(_err) => {
-                return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
-            }
-        }
+    pub fn up(&mut self) -> Result<(), ErrorKind> {
+        self.output.set_high().map_err(|_| ErrorKind::Other)?;
         self.value = Level::High;
         Ok(())
     }
 
-    pub fn down(&mut self) -> Result<()> {
-        match self.output.set_low() {
-            Ok(()) => {
-
-            },
-            Err(_err) => {
-                return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
-            }
-        }
+    pub fn down(&mut self) -> Result<(), ErrorKind> {
+        self.output.set_low().map_err(|_| ErrorKind::Other)?;
         self.value = Level::Low;
         Ok(())
     }
@@ -48,27 +34,13 @@ impl<T> CEPin<T> where T: OutputPin {
         self.saved_value = self.value;
     }
 
-    pub fn restore_state(&mut self) -> Result<()> {
+    pub fn restore_state(&mut self) -> Result<(), ErrorKind> {
         match self.saved_value {
             Level::High => {
-                match self.output.set_high() {
-                    Ok(()) => {
-        
-                    },
-                    Err(_err) => {
-                        return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
-                    }
-                }
+                self.output.set_high().map_err(|_| ErrorKind::Other)?;
             }
             Level::Low => {
-                match self.output.set_low() {
-                    Ok(()) => {
-        
-                    },
-                    Err(_err) => {
-                        return Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg); // TODO: convert error?
-                    }
-                }
+                self.output.set_low().map_err(|_| ErrorKind::Other)?;
             }
         }
         self.value = self.saved_value;

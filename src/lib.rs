@@ -1,5 +1,3 @@
-#![no_std] // TODO: how to put this behind #[cfg(feature = "embassy_rp")]
-
 // Copyright 2017, Romuald Texier-Marcadé <romualdtm@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -112,6 +110,8 @@
 //!     }
 //! }
 //! ```
+
+#![no_std] // TODO: how to put this behind #[cfg(feature = "embassy_rp")]
 
 #[cfg(feature = "linux")]
 extern crate spidev;
@@ -340,8 +340,6 @@ pub struct NRF24L01<SPI, PIN> {
     base_config: u8,
 }
 
-use anyhow::Result;
-
 #[cfg(feature = "linux")]
 impl NRF24L01 {
     // TODO: do not need the entire impl duplicated?
@@ -351,32 +349,25 @@ impl NRF24L01 {
 impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     // Private methods and functions
 
-    fn send_command(&mut self, data_out: &[u8], data_in: &mut [u8]) -> Result<()> {
-        match self.spi.transfer(data_in, &data_out) {
-            Ok(()) => {
-                Ok(())
-            }
-            Err(_err) => {
-                Err(anyhow::anyhow!("Error occured!")).map_err(anyhow::Error::msg) // TODO: convert error?
-            }
-        }
+    fn send_command(&mut self, data_out: &[u8], data_in: &mut [u8]) -> Result<(), ErrorKind> {
+        self.spi.transfer(data_in, &data_out).map_err(|_| ErrorKind::Other)
     }
 
-    fn write_register(&mut self, register: Register, byte: u8) -> Result<()> {
+    fn write_register(&mut self, register: Register, byte: u8) -> Result<(), ErrorKind> {
         // For single byte registers only
         let mut response_buffer = [0u8; 2];
         self.send_command(&[W_REGISTER | register, byte], &mut response_buffer)
     }
 
-    fn read_register(&mut self, register: Register) -> Result<(u8, u8)> {
+    fn read_register(&mut self, register: Register) -> Result<(u8, u8), ErrorKind> {
         // For single byte registers only.
         // Return (STATUS, register)
         let mut response_buffer = [0u8; 2];
-        self.send_command(&[R_REGISTER | register, 0], &mut response_buffer)?;
+        self.send_command(&[R_REGISTER | register, 0], &mut response_buffer).map_err(|_| ErrorKind::Other)?;
         Ok((response_buffer[0], response_buffer[1]))
     }
 
-    fn setup_rf(&mut self, rate: DataRate, level: PALevel) -> Result<()> {
+    fn setup_rf(&mut self, rate: DataRate, level: PALevel) -> Result<(), ErrorKind> {
         let rate_bits: u8 = match rate {
             DataRate::R250Kbps => 0b0010_0000,
             DataRate::R1Mbps => 0,
@@ -391,7 +382,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         self.write_register(RF_SETUP, rate_bits | level_bits)
     }
 
-    fn set_channel(&mut self, channel: u8) -> Result<()> {
+    fn set_channel(&mut self, channel: u8) -> Result<(), ErrorKind> {
         if channel < 126 {
             self.write_register(RF_CH, channel)
         } else {
@@ -399,65 +390,65 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         }
     }
 
-    fn set_full_address(&mut self, pipe: Register, address: [u8; 5]) -> Result<()> {
+    fn set_full_address(&mut self, pipe: Register, address: [u8; 5]) -> Result<(), ErrorKind> {
         let mut response_buffer = [0u8; 6];
         let mut command = [W_REGISTER | pipe, 0, 0, 0, 0, 0];
         command[1..].copy_from_slice(&address);
         self.send_command(&command, &mut response_buffer)
     }
 
-    fn configure_receiver(&mut self, config: &RXConfig) -> Result<u8> {
+    fn configure_receiver(&mut self, config: &RXConfig) -> Result<u8, ErrorKind> {
         // set data rate
         // set PA level
-        self.setup_rf(config.data_rate, config.pa_level)?;
+        self.setup_rf(config.data_rate, config.pa_level).map_err(|_| ErrorKind::Other)?;
         // set channel
-        self.set_channel(config.channel)?;
+        self.set_channel(config.channel).map_err(|_| ErrorKind::Other)?;
         // set Pipe 0 address
-        self.set_full_address(RX_ADDR_P0, config.pipe0_address)?;
+        self.set_full_address(RX_ADDR_P0, config.pipe0_address).map_err(|_| ErrorKind::Other)?;
         let mut enabled = 1u8;
         // Pipe 1
         if let Some(address) = config.pipe1_address {
-            self.set_full_address(RX_ADDR_P1, address)?;
+            self.set_full_address(RX_ADDR_P1, address).map_err(|_| ErrorKind::Other)?;
             enabled |= 0b0000_0010
         };
         // Pipe 2
         if let Some(lsb) = config.pipe2_addr_lsb {
-            self.write_register(RX_ADDR_P2, lsb)?;
+            self.write_register(RX_ADDR_P2, lsb).map_err(|_| ErrorKind::Other)?;
             enabled |= 0b0000_0100
         };
         // Pipe 3
         if let Some(lsb) = config.pipe3_addr_lsb {
-            self.write_register(RX_ADDR_P3, lsb)?;
+            self.write_register(RX_ADDR_P3, lsb).map_err(|_| ErrorKind::Other)?;
             enabled |= 0b0000_1000
         }
         // Pipe 4
         if let Some(lsb) = config.pipe4_addr_lsb {
-            self.write_register(RX_ADDR_P4, lsb)?;
+            self.write_register(RX_ADDR_P4, lsb).map_err(|_| ErrorKind::Other)?;
             enabled |= 0b0001_0000
         };
         // Pipe 5
         if let Some(lsb) = config.pipe5_addr_lsb {
-            self.write_register(RX_ADDR_P5, lsb)?;
+            self.write_register(RX_ADDR_P5, lsb).map_err(|_| ErrorKind::Other)?;
             enabled |= 0b0010_0000
         };
         // Enable configured pipes
-        self.write_register(EN_RXADDR, enabled)?;
+        self.write_register(EN_RXADDR, enabled).map_err(|_| ErrorKind::Other)?;
         // base config is 2 bytes for CRC and RX mode on
         // only reflect RX_DR on the IRQ pin
         Ok(0b0011_1101)
     }
 
-    fn configure_transmitter(&mut self, config: &TXConfig) -> Result<u8> {
+    fn configure_transmitter(&mut self, config: &TXConfig) -> Result<u8, ErrorKind> {
         // set data rate
         // set PA level
-        self.setup_rf(config.data_rate, config.pa_level)?;
+        self.setup_rf(config.data_rate, config.pa_level).map_err(|_| ErrorKind::Other)?;
         // set channel
-        self.set_channel(config.channel)?;
+        self.set_channel(config.channel).map_err(|_| ErrorKind::Other)?;
         // set destination and Pipe 0 address
-        self.set_full_address(RX_ADDR_P0, config.pipe0_address)?;
-        self.set_full_address(TX_ADDR, config.pipe0_address)?;
+        self.set_full_address(RX_ADDR_P0, config.pipe0_address).map_err(|_| ErrorKind::Other)?;
+        self.set_full_address(TX_ADDR, config.pipe0_address).map_err(|_| ErrorKind::Other)?;
         // disable other pipes
-        self.write_register(EN_RXADDR, 1u8)?;
+        self.write_register(EN_RXADDR, 1u8).map_err(|_| ErrorKind::Other)?;
         // retransmission settings
         let retry_bits: u8 = if config.max_retries < 16 {
             config.max_retries
@@ -469,7 +460,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         } else {
             0xF0
         };
-        self.write_register(SETUP_RETR, retry_delay_bits | retry_bits)?;
+        self.write_register(SETUP_RETR, retry_delay_bits | retry_bits).map_err(|_| ErrorKind::Other)?;
         // base config is 2 bytes for CRC and TX mode on
         // only reflect TX_DS and MAX_RT on the IRQ pin
         Ok(0b0100_1100)
@@ -491,14 +482,14 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
 
     #[cfg(feature = "linux")]
     pub fn new(ce_pin: u64, spi_device: u8) -> io::Result<NRF24L01> {
-        let mut spi = spidev::Spidev::open(format!("/dev/spidev0.{}", spi_device))?;
+        let mut spi = spidev::Spidev::open(format!("/dev/spidev0.{}", spi_device)).map_err(|_| ErrorKind::Other)?;
         let options = spidev::SpidevOptions::new()
             .bits_per_word(8)
             .max_speed_hz(10_000_000)
             .mode(spidev::SpiModeFlags::SPI_MODE_0)
             .build();
-        spi.configure(&options)?;
-        let ce = CEPin::new(ce_pin)?;
+        spi.configure(&options).map_err(|_| ErrorKind::Other)?;
+        let ce = CEPin::new(ce_pin).map_err(|_| ErrorKind::Other)?;
         Ok(NRF24L01 {
             ce,
             spi,
@@ -507,9 +498,9 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     }
 
     #[cfg(feature = "embassy_rp")]
-    pub fn new(spi: SPI, output: PIN) -> Result<NRF24L01<SPI, PIN>> {
+    pub fn new(spi: SPI, output: PIN) -> Result<NRF24L01<SPI, PIN>, ErrorKind> {
         Ok(NRF24L01 {
-            ce: CEPin::new(output)?,
+            ce: CEPin::new(output).map_err(|_| ErrorKind::Other).map_err(|_| ErrorKind::Other)?,
             spi,
             base_config: 0b0000_1101,
         })
@@ -523,13 +514,13 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// All commands work when the device is in standby (recommended) as well as
     /// active state.
-    pub fn configure(&mut self, mode: &OperatingMode) -> Result<()> {
-        self.ce.down()?;
+    pub fn configure(&mut self, mode: &OperatingMode) -> Result<(), ErrorKind> {
+        self.ce.down().map_err(|_| ErrorKind::Other)?;
         // auto acknowlegement
-        self.write_register(EN_AA, 0b0011_1111)?;
+        self.write_register(EN_AA, 0b0011_1111).map_err(|_| ErrorKind::Other)?;
         // dynamic payload and payload with ACK
-        self.write_register(DYNPD, 0b0011_1111)?;
-        self.write_register(FEATURE, 0b0000_0110)?;
+        self.write_register(DYNPD, 0b0011_1111).map_err(|_| ErrorKind::Other)?;
+        self.write_register(FEATURE, 0b0000_0110).map_err(|_| ErrorKind::Other)?;
 
         // Mode specific configuration
         match *mode {
@@ -557,18 +548,18 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         nb_iter: u32,
         wait_ms: u32,
         channel_table: &mut [u32; 126],
-    ) -> Result<()> {
-        self.write_register(EN_AA, 0u8)?;
+    ) -> Result<(), ErrorKind> {
+        self.write_register(EN_AA, 0u8).map_err(|_| ErrorKind::Other)?;
         for _ in 0..nb_iter {
             for channel in 0..126 {
-                self.set_channel(channel)?;
-                self.listen()?;
+                self.set_channel(channel).map_err(|_| ErrorKind::Other)?;
+                self.listen().map_err(|_| ErrorKind::Other)?;
                 #[cfg(feature = "linux")]
                 sleep(Duration::from_millis(wait_ms as u64));
                 #[cfg(feature = "embassy_rp")]
                 embassy_time::block_for(embassy_time::Duration::from_millis(wait_ms as u64));
-                self.standby()?;
-                let (_, rpd) = self.read_register(RPD)?;
+                self.standby().map_err(|_| ErrorKind::Other)?;
+                let (_, rpd) = self.read_register(RPD).map_err(|_| ErrorKind::Other)?;
                 if rpd > 0 {
                     channel_table[channel as usize] += 1;
                 }
@@ -585,13 +576,13 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// The power consumption is minimum in this mode, and the device ceases all operation.
     /// It only accepts configuration commands.
-    pub fn power_down(&mut self) -> Result<()> {
-        self.ce.down()?;
+    pub fn power_down(&mut self) -> Result<(), ErrorKind> {
+        self.ce.down().map_err(|_| ErrorKind::Other)?;
         self.write_register(CONFIG, self.base_config)
     }
 
     /// Power the device up for full operation.
-    pub fn power_up(&mut self) -> Result<()> {
+    pub fn power_up(&mut self) -> Result<(), ErrorKind> {
         self.write_register(CONFIG, self.base_config | 0b0000_0010)
     }
 
@@ -599,8 +590,8 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// Only used in RX mode to suspend active listening.
     /// In TX mode, standby is the default state when not sending data.
-    pub fn standby(&mut self) -> Result<()> {
-        self.ce.down()?; // always returnss without error.
+    pub fn standby(&mut self) -> Result<(), ErrorKind> {
+        self.ce.down().map_err(|_| ErrorKind::Other)?; // always returnss without error.
         Ok(())
     }
 
@@ -608,9 +599,9 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// In RX mode, call this function after a `.configure(...)`, `.standby()` or `power_up()` to
     /// accept incoming packets.
-    pub fn listen(&mut self) -> Result<()> {
+    pub fn listen(&mut self) -> Result<(), ErrorKind> {
         if self.is_receiver() {
-            self.ce.up()?;
+            self.ce.up().map_err(|_| ErrorKind::Other)?;
         }
         Ok(())
     }
@@ -619,7 +610,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     ///
     /// Works in both RX and TX modes. In TX mode, this function returns true if
     /// a ACK payload has been received.
-    pub fn data_available(&mut self) -> Result<bool> {
+    pub fn data_available(&mut self) -> Result<bool, ErrorKind> {
         self.read_register(FIFO_STATUS)
             .and_then(|(_, fifo_status)| Ok(fifo_status.trailing_zeros() >= 1))
     }
@@ -634,7 +625,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// **Note**: this function puts the device in standby mode during
     /// the processing of the queue and restores operations when it returns *successfully*.
     /// So the `process_packet` callback should better return quickly.
-    pub fn read_all<F>(&mut self, mut process_packet: F) -> Result<u8>
+    pub fn read_all<F>(&mut self, mut process_packet: F) -> Result<u8, ErrorKind>
     where
         F: FnMut(&[u8]) -> (),
     {
@@ -647,23 +638,23 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
         // save CE state
         self.ce.save_state();
         // Standby
-        self.ce.down()?;
+        self.ce.down().map_err(|_| ErrorKind::Other)?;
         // process queue
-        while self.data_available()? {
-            self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd)?;
+        while self.data_available().map_err(|_| ErrorKind::Other)? {
+            self.send_command(&[R_RX_PL_WID, 0], &mut pl_wd).map_err(|_| ErrorKind::Other)?;
             let width = pl_wd[1] as usize;
             if width != 0 {
                 // can it be false?
                 let ubound = width + 1;
-                self.send_command(&out_buffer[..ubound], &mut receive_buffer[..ubound])?;
+                self.send_command(&out_buffer[..ubound], &mut receive_buffer[..ubound]).map_err(|_| ErrorKind::Other)?;
                 process_packet(&receive_buffer[1..ubound]);
                 count += 1;
             }
         }
         // Clear interrupt
-        self.write_register(STATUS, 0b0100_0000)?;
+        self.write_register(STATUS, 0b0100_0000).map_err(|_| ErrorKind::Other)?;
         // Restore previous CE state
-        self.ce.restore_state()?;
+        self.ce.restore_state().map_err(|_| ErrorKind::Other)?;
         Ok(count)
     }
 
@@ -691,11 +682,11 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// it receives a new, different message from the same transmitter.
     /// So, it keeps the ACK payload under hand in case the transmitter resends the same
     /// packet over again.
-    pub fn push(&mut self, pipe_num: u8, data: &[u8]) -> Result<()> {
-        let (status, fifo_status) = self.read_register(FIFO_STATUS)?;
+    pub fn push(&mut self, pipe_num: u8, data: &[u8]) -> Result<(), ErrorKind> {
+        let (status, fifo_status) = self.read_register(FIFO_STATUS).map_err(|_| ErrorKind::Other)?;
         if (status & 1 != 0) || (fifo_status & 0b0010_0000 != 0) {
             // TX_FIFO is full
-            Err(anyhow::anyhow!("Sending queue is full!")).map_err(anyhow::Error::msg) // TODO: ErrorKind::WriteZero
+            Err(ErrorKind::WriteZero)
         } else {
             let command = if self.is_receiver() {
                 let actual_pipe_num: u8 = if pipe_num < 6 { pipe_num } else { 5 };
@@ -704,7 +695,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
                 W_TX_PAYLOAD
             };
             if data.len() > 32 {
-                Err(anyhow::anyhow!("Packet too big!")).map_err(anyhow::Error::msg) // TODO: ErrorKind::InvalidData
+                Err(ErrorKind::InvalidData)
             } else {
                 let mut out_buffer = [command; 33];
                 let ubound = data.len() + 1;
@@ -728,21 +719,21 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// # Errors
     /// Return Spidev errors as well as a custom io::ErrorKind::Timeout
     /// when the maximun number of retries has been reached.
-    pub fn send(&mut self) -> Result<u8> {
+    pub fn send(&mut self) -> Result<u8, ErrorKind> {
         // clear TX_DS and MAX_RT
-        self.write_register(STATUS, 0x30)?;
+        self.write_register(STATUS, 0x30).map_err(|_| ErrorKind::Other)?;
         // init retry counter
         let mut counter = 0u8;
-        let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
+        let (_, fifo_status) = self.read_register(FIFO_STATUS).map_err(|_| ErrorKind::Other)?;
         let mut packets_left = fifo_status & 0x10 == 0;
         while packets_left {
             // send with a 10us pulse
-            self.ce.up()?;
+            self.ce.up().map_err(|_| ErrorKind::Other)?;
             #[cfg(feature = "linux")]
             sleep(Duration::new(0, 10_000));
             #[cfg(feature = "embassy_rp")]
             embassy_time::block_for(embassy_time::Duration::from_micros(10));
-            self.ce.down()?;
+            self.ce.down().map_err(|_| ErrorKind::Other)?;
             let mut status = 0u8;
             let mut observe = 0u8;
             // wait for ACK
@@ -752,7 +743,7 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
                 sleep(Duration::new(0, 360_000));
                 #[cfg(feature = "embassy_rp")]
                 embassy_time::block_for(embassy_time::Duration::from_micros(360));
-                let outcome = self.read_register(OBSERVE_TX)?;
+                let outcome = self.read_register(OBSERVE_TX).map_err(|_| ErrorKind::Other)?;
                 status = outcome.0;
                 observe = outcome.1;
             }
@@ -760,17 +751,17 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
             if status & 0x10 > 0 {
                 // failure
                 // clear MAX_RT
-                self.write_register(STATUS, 0x10)?;
+                self.write_register(STATUS, 0x10).map_err(|_| ErrorKind::Other)?;
                 // force return
-                return Err(anyhow::anyhow!("Maximum number of retries reached!")).map_err(anyhow::Error::msg); // TODO: ErrorKind::TimedOut 
+                return Err(ErrorKind::TimeoutError);
             };
             // Success
             counter += observe & 0x0f;
-            let (_, fifo_status) = self.read_register(FIFO_STATUS)?;
+            let (_, fifo_status) = self.read_register(FIFO_STATUS).map_err(|_| ErrorKind::Other)?;
             packets_left = fifo_status & 0x10 == 0;
         }
         // clear TX_DS
-        self.write_register(STATUS, 0x20)?;
+        self.write_register(STATUS, 0x20).map_err(|_| ErrorKind::Other)?;
         // if all sent, return retry counter
         Ok(counter)
     }
@@ -778,20 +769,29 @@ impl<SPI, PIN> NRF24L01<SPI, PIN> where SPI: SpiDevice, PIN: OutputPin {
     /// Clear input queue.
     ///
     /// In RX mode, use only when device is in standby.
-    pub fn flush_input(&mut self) -> Result<()> {
+    pub fn flush_input(&mut self) -> Result<(), ErrorKind> {
         let mut buffer = [0u8];
-        self.send_command(&[FLUSH_RX], &mut buffer)?;
+        self.send_command(&[FLUSH_RX], &mut buffer).map_err(|_| ErrorKind::Other)?;
         Ok(())
     }
 
     /// Clear output queue.
     ///
     /// In RX mode, use only when device is in standby.
-    pub fn flush_output(&mut self) -> Result<()> {
+    pub fn flush_output(&mut self) -> Result<(), ErrorKind> {
         let mut buffer = [0u8];
-        self.send_command(&[FLUSH_TX], &mut buffer)?;
+        self.send_command(&[FLUSH_TX], &mut buffer).map_err(|_| ErrorKind::Other)?;
         Ok(())
     }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, defmt::Format)]
+#[repr(u8)]
+pub enum ErrorKind {
+    Other,
+    TimeoutError,
+    WriteZero,
+    InvalidData
 }
 
 #[cfg(test)]
