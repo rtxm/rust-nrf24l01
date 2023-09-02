@@ -4,6 +4,8 @@
 
 * [Documentation](https://docs.rs/nrf24l01/0.1.0/)
 
+**Notice: requires Rust <= 1.58**
+
 A pure Rust user space driver for NRF24L01(+) transceivers on Linux.
 
 The aim of this driver is to provide a rustic, easy to use, no non-sense
